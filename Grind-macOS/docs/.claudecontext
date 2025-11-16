@@ -1,0 +1,180 @@
+# Activity Tracker - Claude Code Context
+
+## Project Overview
+
+macOS developer productivity tracker similar to WakaTime but with system-level tracking and terminal/AI tool monitoring.
+
+## Key Documents
+
+- **PRD:** `/docs/PRD.md` - Complete product requirements and specifications
+- **Architecture:** `/docs/ARCHITECTURE.md` - Technical architecture and data flow
+- **Database Schema:** See PRD Section 3.3 and FR-008
+
+## Core Principles
+
+1. **Privacy-first:** All data stored locally, no cloud sync
+2. **Performance:** <1% CPU usage, <100MB RAM
+3. **Accuracy:** WakaTime-style heartbeat algorithm with 2-min max gaps
+4. **Smart idle detection:** Multi-level (typing, active, reading, away)
+
+## Technology Stack
+
+- Language: Swift 5.9+
+- UI: SwiftUI
+- Database: SQLite (GRDB.swift)
+- Charts: Swift Charts
+- Terminal Integration: iTerm2 Python API + Accessibility API
+
+## Key Architecture Decisions
+
+### Heartbeat Algorithm
+
+- Poll every 2 seconds when active
+- Heartbeats only recorded if idle time < 30s
+- Max 120-second gap between heartbeats counts as continuous
+- Sessions close when idle > 120s
+
+### Data Layers
+
+1. Raw Heartbeats (90-day retention)
+2. 5-minute Time Blocks (permanent)
+3. Daily Summaries (permanent)
+4. Terminal Sessions (permanent)
+
+### Idle Detection Thresholds
+
+- Typing: < 10s since last keystroke
+- Active: < 30s since last input
+- Reading: 30-120s since last input
+- Away: > 120s since last input
+
+## Important Implementation Notes
+
+### Terminal Tracking
+
+- Primary: iTerm2 Python API (most accurate)
+- Fallback: Accessibility API (works for all terminals)
+- Privacy: Store metadata only (line count, token estimate, timestamp)
+- Never store actual terminal content by default
+
+### Token Estimation
+
+For LLM tool output:
+
+- Code content: ~3.0 chars/token
+- Prose content: ~4.0 chars/token
+- Mixed content: word_count × 1.3
+
+### App Categorization
+
+Auto-categorize apps into:
+
+- Coding (Xcode, VS Code, etc.)
+- Terminal (iTerm2, Terminal.app)
+- Browsing (Safari, Chrome)
+- Communication (Slack, Mail)
+- Design, Documentation, Utilities, Entertainment, Other
+
+## Database Schema Quick Reference
+
+### Heartbeats Table
+
+```sql
+heartbeats (
+    id, timestamp, app_name, bundle_id, 
+    window_title, project_name, category,
+    is_typing, idle_seconds, keystroke_count
+)
+```
+
+### Time Blocks (5-min aggregates)
+
+```sql
+blocks_5min (
+    block_start, app_name, category,
+    active_duration, typing_duration, 
+    keystroke_count, project_name
+)
+```
+
+### Daily Stats
+
+```sql
+daily_stats (
+    date, app_name, category,
+    total_duration, typing_duration,
+    keystroke_count, sessions_count
+)
+```
+
+### Terminal Sessions
+
+```sql
+terminal_sessions (
+    id, start_time, end_time, tool_name, llm_tool,
+    total_lines, total_tokens, 
+    input_tokens, output_tokens
+)
+```
+
+## Development Phases
+
+Phase 1 (MVP - 4-6 weeks): Core tracking, idle detection, basic dashboard
+Phase 2 (Enhanced - 3-4 weeks): Terminal tracking, LLM detection, full dashboard
+Phase 3 (Advanced - 2-3 weeks): Projects, goals, export
+Phase 4 (Polish - 1-2 weeks): Optimization, testing
+
+## Current Focus
+
+Starting with Phase 1 MVP - prioritize core tracking functionality.
+
+## When Implementing Features
+
+1. Always check PRD section for detailed requirements
+2. Follow the heartbeat algorithm exactly (FR-002, FR-003)
+3. Respect privacy controls (FR-017, FR-018, FR-019)
+4. Maintain performance targets (NFR-001, NFR-002)
+5. Use appropriate data layer (heartbeats vs blocks vs summaries)
+
+## Testing Requirements
+
+- Unit test coverage: 80%+
+- Performance: <1% CPU average over 8 hours
+- No memory leaks
+- Handle sleep/wake cycles correctly
+
+## Common Patterns
+
+### Recording Activity
+
+```swift
+// Every 2 seconds:
+1. Get active app (NSWorkspace)
+2. Check idle time (CGEventSource)
+3. If idle < 30s → record heartbeat
+4. Count keystrokes (if typing detected)
+5. Save to database
+6. Aggregate into 5-min blocks
+```
+
+### Time Block Rounding
+
+```swift
+// Round to 5-min boundary
+let blockStart = floor(timestamp / 300) * 300
+// 14:03:42 → 14:00:00
+// 14:07:19 → 14:05:00
+```
+
+## macOS Permissions Required
+
+- Accessibility (required): App monitoring, idle detection
+- Screen Recording (optional): Enhanced terminal tracking
+
+## Questions While Implementing?
+
+Refer to PRD sections:
+
+- FR-001 to FR-019: Detailed functional requirements
+- Section 5: Technical architecture
+- Section 10: Known risks and mitigations
