@@ -19,6 +19,7 @@ struct DashboardView: View {
     @State private var screenSize: CGSize = .zero
     @State private var cachedAppNames: [String] = []
     @State private var hasCompletedInitialLayout: Bool = false  // Track if initial layout is done
+    @State private var isMeasuring: Bool = false  // Prevent concurrent remeasurements
 
     // Three-stage layout process
     enum LayoutStage {
@@ -73,19 +74,22 @@ struct DashboardView: View {
             }
             .background(Color(.systemGroupedBackground))
             .ignoresSafeArea(.all, edges: .all)
-            .onChange(of: screen.size) { newSize in
-                // Only reset if size actually changed (not initial load)
-                if screenSize != .zero && newSize != screenSize {
-                    print("📱 Screen size changed: \(screenSize) → \(newSize)")
-                    screenSize = newSize
+            .onChange(of: screen.size) { oldValue, newValue in
+                // Only reset if size actually changed (not initial load) and not currently measuring
+                if screenSize != .zero && newValue != screenSize && !isMeasuring {
+                    print("📱 Screen size changed: \(screenSize) → \(newValue), triggering remeasurement")
+                    screenSize = newValue
                     // Reset to stage 1 to remeasure
+                    isMeasuring = true
                     hasCompletedInitialLayout = false
                     layoutStage = .measuringTimeline
                     timelineHeight = 0
                     appLegendHeight = 0
                 } else if screenSize == .zero {
-                    print("📱 Initial screen size: \(newSize)")
-                    screenSize = newSize
+                    print("📱 Initial screen size: \(newValue)")
+                    screenSize = newValue
+                } else if isMeasuring {
+                    print("📱 Screen size change ignored (currently measuring)")
                 }
             }
             .onAppear {
@@ -99,23 +103,28 @@ struct DashboardView: View {
                     print("📋 Initial app list cached: \(cachedAppNames)")
                 }
             }
-            .onChange(of: legendAppNames) { newAppNames in
+            .onChange(of: legendAppNames) { oldValue, newValue in
                 // Only remeasure if:
                 // 1. Initial layout is complete (hasCompletedInitialLayout == true)
                 // 2. App list actually changed
-                if hasCompletedInitialLayout && newAppNames != cachedAppNames {
-                    print("📋 App list changed after initial layout: \(cachedAppNames.count) → \(newAppNames.count)")
+                // 3. Not currently measuring
+                if hasCompletedInitialLayout && newValue != cachedAppNames && !isMeasuring {
+                    print("📋 App list changed after initial layout: \(cachedAppNames.count) → \(newValue.count), triggering remeasurement")
                     print("   Old: \(cachedAppNames)")
-                    print("   New: \(newAppNames)")
-                    cachedAppNames = newAppNames
+                    print("   New: \(newValue)")
+                    cachedAppNames = newValue
                     // Reset to stage 1 to remeasure
+                    isMeasuring = true
                     hasCompletedInitialLayout = false
                     layoutStage = .measuringTimeline
                     timelineHeight = 0
                     appLegendHeight = 0
                 } else if !hasCompletedInitialLayout {
-                    print("📋 App list changed during initial layout: \(cachedAppNames.count) → \(newAppNames.count), ignoring")
-                    cachedAppNames = newAppNames  // Update cache but don't trigger remeasure
+                    print("📋 App list changed during initial layout: \(cachedAppNames.count) → \(newValue.count), ignoring")
+                    cachedAppNames = newValue  // Update cache but don't trigger remeasure
+                } else if isMeasuring {
+                    print("📋 App list change ignored (currently measuring)")
+                    cachedAppNames = newValue  // Update cache
                 }
             }
         }
@@ -181,6 +190,7 @@ struct DashboardView: View {
                     )
                 Spacer()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(padding)
         }
     }
@@ -200,18 +210,10 @@ struct DashboardView: View {
         let appListWidth = screenSize.width - iterm2Width - padding * 3
 
         VStack(alignment: .leading, spacing: padding) {
-            Text("Stage 2: Measuring AppLegend")
-                .font(.caption)
-                .foregroundColor(.orange)
-                .padding(.top, padding)
-                .padding(.leading, padding)
-
             // Timeline (already measured, fixed height)
             if timelineHeight > 0 {
                 TodayTimelineView(timeBlocks: viewModel.todayTimeBlocks)
                     .frame(width: timelineWidth, height: timelineHeight)
-                    .border(Color.red, width: 2)  // Debug: visualize timeline area
-                    .padding(.horizontal, padding)
             }
 
             // AppLegend (measuring)
@@ -222,7 +224,6 @@ struct DashboardView: View {
                 )
                 .frame(width: appListWidth)
                 .fixedSize(horizontal: false, vertical: true)  // Allow vertical auto-sizing
-                .border(Color.blue, width: 2)  // Debug: visualize app legend area
                 .background(
                     GeometryReader { proxy in
                         Color.clear
@@ -252,7 +253,8 @@ struct DashboardView: View {
                                                 print("🔄 [Stage 2→3] Transitioning to ready state...")
                                                 self.layoutStage = .ready
                                                 self.hasCompletedInitialLayout = true
-                                                print("✅ [Stage 2→3] Initial layout complete! Timeline=\(self.timelineHeight), AppLegend=\(self.appLegendHeight)")
+                                                self.isMeasuring = false  // Measurement complete
+                                                print("✅ [Stage 2→3] Layout complete! Timeline=\(self.timelineHeight), AppLegend=\(self.appLegendHeight), can accept new triggers now")
                                             }
                                         }
                                     }
@@ -262,7 +264,6 @@ struct DashboardView: View {
                             }
                     }
                 )
-                .padding(.leading, padding)
 
                 Spacer()
             }
@@ -270,6 +271,7 @@ struct DashboardView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(padding)  // Outer padding for entire dashboard
         .background(Color(.systemGroupedBackground))
     }
 
@@ -338,7 +340,8 @@ struct DashboardView: View {
                     }
                 }
             }
-            .padding(padding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(padding)  // Outer padding for entire dashboard
 
             // Floating connection status and refresh button (top-right)
             HStack(spacing: 8) {
@@ -483,7 +486,7 @@ struct ITerm2TerminalView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(16)
+        .padding(12)  // Internal padding only
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 12)
@@ -531,7 +534,7 @@ private struct TerminalOutputArea: View {
             .onAppear {
                 scrollToBottom(proxy: proxy)
             }
-            .onChange(of: lines) { _ in
+            .onChange(of: lines) { oldValue, newValue in
                 scrollToBottom(proxy: proxy)
             }
         }

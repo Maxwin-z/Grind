@@ -42,8 +42,8 @@ struct KeyboardVisualizerView: View {
             }
         }
         .padding()
-        .onChange(of: keystrokeSequence) { _ in
-            print("🔄 onChange(keystrokeSequence) triggered: \(keystrokeSequence)")
+        .onChange(of: keystrokeSequence) { oldValue, newValue in
+            print("🔄 onChange(keystrokeSequence) triggered: \(newValue)")
             handleKeyPress(key: currentKey, modifiers: currentModifiers)
         }
         .onAppear {

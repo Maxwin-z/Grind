@@ -25,8 +25,8 @@ struct TodayTimelineView: View {
                 timelineView
             }
         }
-        .padding()
-        .background(Color(.red))
+        .padding(12)  // Internal padding only
+        .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }

@@ -35,7 +35,7 @@ struct AppLegendListView: View {
                 .padding(.vertical, 4)
             }
         }
-        .padding()
+        .padding(12)  // Internal padding only
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemBackground))
         .cornerRadius(12)
