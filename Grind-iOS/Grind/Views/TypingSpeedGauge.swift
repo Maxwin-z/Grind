@@ -13,6 +13,7 @@ struct TypingSpeedGauge: View {
     let isTyping: Bool
     let currentKey: String
     let currentModifiers: [String]
+    let keystrokeSequence: UInt64
 
     // Gauge ranges
     private let maxKPM = 300  // Maximum displayable KPM
@@ -77,15 +78,21 @@ struct TypingSpeedGauge: View {
                     .lineLimit(1)
             }
 
-            // Current keystroke display
-            if !currentKey.isEmpty || !currentModifiers.isEmpty {
-                VStack(spacing: 8) {
-                    Text("Current Key")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            // Keyboard visualizer
+            VStack(spacing: 8) {
+                Text("Keyboard")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
 
-                    CurrentKeystrokeView(key: currentKey, modifiers: currentModifiers)
-                }
+                KeyboardVisualizerView(
+                    currentKey: currentKey,
+                    currentModifiers: currentModifiers,
+                    keystrokeSequence: keystrokeSequence
+                )
+                .frame(maxWidth: .infinity)
+                .padding(8)
+                .background(Color(.systemGray6).opacity(0.5))
+                .cornerRadius(8)
             }
 
             // Speed legend
@@ -156,21 +163,24 @@ struct TypingSpeedGauge_Previews: PreviewProvider {
                 currentApp: "Xcode",
                 isTyping: true,
                 currentKey: "A",
-                currentModifiers: []
+                currentModifiers: [],
+                keystrokeSequence: 1
             )
             TypingSpeedGauge(
                 kpm: 150,
                 currentApp: "VS Code",
                 isTyping: false,
                 currentKey: "C",
-                currentModifiers: ["Command"]
+                currentModifiers: ["Command"],
+                keystrokeSequence: 2
             )
             TypingSpeedGauge(
                 kpm: 0,
                 currentApp: "—",
                 isTyping: false,
                 currentKey: "",
-                currentModifiers: []
+                currentModifiers: [],
+                keystrokeSequence: 3
             )
         }
         .padding()

@@ -30,6 +30,7 @@ class DashboardViewModel: ObservableObject {
     // Current keystroke display
     @Published var currentKey: String = ""
     @Published var currentModifiers: [String] = []
+    @Published var keystrokeSequence: UInt64 = 0
 
     // MARK: - Private Properties
 
@@ -202,8 +203,11 @@ class DashboardViewModel: ObservableObject {
     }
 
     private func processKeystroke(_ data: KeystrokeData) {
+        print("⌨️ DashboardViewModel processKeystroke - key: '\(data.key)', modifiers: \(data.modifiers)")
         currentKey = data.key
         currentModifiers = data.modifiers
+        keystrokeSequence &+= 1
+        print("   📤 Published currentKey: '\(currentKey)', currentModifiers: \(currentModifiers)")
 
         // Record keystroke timestamp for KPM calculation
         let now = Date()

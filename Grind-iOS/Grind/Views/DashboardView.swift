@@ -42,7 +42,8 @@ struct DashboardView: View {
                         currentApp: viewModel.currentApp,
                         isTyping: viewModel.isTyping,
                         currentKey: viewModel.currentKey,
-                        currentModifiers: viewModel.currentModifiers
+                        currentModifiers: viewModel.currentModifiers,
+                        keystrokeSequence: viewModel.keystrokeSequence
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
