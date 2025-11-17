@@ -42,7 +42,6 @@ class NetworkClient: NSObject, ObservableObject {
 
     /// Start discovering Grind servers on local network using Bonjour
     func startServiceDiscovery() {
-        print("🔍 Starting Bonjour service discovery for '\(serviceType)'...")
         connectionStatus = "Discovering servers..."
 
         let parameters = NWParameters.tcp
@@ -52,16 +51,12 @@ class NetworkClient: NSObject, ObservableObject {
 
         browser.stateUpdateHandler = { [weak self] newState in
             DispatchQueue.main.async {
-                print("🔄 Browser state changed: \(newState)")
                 switch newState {
                 case .ready:
-                    print("✅ Browser ready, searching for servers...")
                     self?.connectionStatus = "Searching for Grind servers..."
                 case .failed(let error):
-                    print("❌ Browser failed: \(error.localizedDescription)")
                     self?.connectionStatus = "Discovery failed: \(error.localizedDescription)"
                 case .cancelled:
-                    print("⚠️ Browser cancelled")
                     self?.connectionStatus = "Discovery cancelled"
                 default:
                     break
@@ -72,29 +67,19 @@ class NetworkClient: NSObject, ObservableObject {
         browser.browseResultsChangedHandler = { [weak self] results, changes in
             guard let self = self else { return }
 
-            print("📡 Browse results changed:")
-            print("   Found \(results.count) services")
-            for result in results {
-                print("   - \(result.endpoint)")
-            }
-
             // Connect to first available server
             if let firstResult = results.first {
-                print("🎯 Connecting to first server: \(firstResult.endpoint)")
                 DispatchQueue.main.async {
                     self.connectionStatus = "Found server, connecting..."
                 }
                 self.connectToService(firstResult.endpoint)
                 self.serviceBrowser?.cancel()
                 self.serviceBrowser = nil
-            } else {
-                print("⚠️ No servers found yet")
             }
         }
 
         browser.start(queue: queue)
         serviceBrowser = browser
-        print("✅ Browser started")
     }
 
     /// Connect to discovered service endpoint
@@ -116,7 +101,6 @@ class NetworkClient: NSObject, ObservableObject {
     // MARK: - Connection Management
 
     private func startConnection(_ newConnection: NWConnection) {
-        print("🔌 Starting new connection...")
         // Cancel existing connection
         connection?.cancel()
 
@@ -124,25 +108,19 @@ class NetworkClient: NSObject, ObservableObject {
 
         connection?.stateUpdateHandler = { [weak self] newState in
             DispatchQueue.main.async {
-                print("🔄 Connection state changed: \(newState)")
                 switch newState {
                 case .ready:
-                    print("✅ Connection ready! Starting to receive messages...")
                     self?.isConnected = true
                     self?.connectionStatus = "Connected"
                     self?.receiveMessages()
                 case .preparing:
-                    print("🔄 Connection preparing...")
                     self?.connectionStatus = "Connecting..."
                 case .waiting(let error):
-                    print("⏳ Connection waiting: \(error.localizedDescription)")
                     self?.connectionStatus = "Waiting: \(error.localizedDescription)"
                 case .failed(let error):
-                    print("❌ Connection failed: \(error.localizedDescription)")
                     self?.isConnected = false
                     self?.connectionStatus = "Failed: \(error.localizedDescription)"
                 case .cancelled:
-                    print("⚠️ Connection cancelled")
                     self?.isConnected = false
                     self?.connectionStatus = "Disconnected"
                 default:
@@ -152,7 +130,6 @@ class NetworkClient: NSObject, ObservableObject {
         }
 
         connection?.start(queue: queue)
-        print("✅ Connection start initiated")
     }
 
     func disconnect() {
@@ -165,34 +142,21 @@ class NetworkClient: NSObject, ObservableObject {
     // MARK: - Message Receiving
 
     private func receiveMessages() {
-        print("📥 Starting to receive messages...")
         // First receive 4-byte length header
-        connection?.receive(minimumIncompleteLength: 4, maximumLength: 4) { [weak self] data, _, isComplete, error in
+        connection?.receive(minimumIncompleteLength: 4, maximumLength: 4) { [weak self] data, _, isComplete, _ in
             guard let self = self, let data = data, !isComplete else {
-                if let error = error {
-                    print("❌ Error receiving length header: \(error)")
-                } else if isComplete {
-                    print("⚠️ Connection closed while receiving length header")
-                }
                 return
             }
 
             // Parse length (big-endian UInt32)
             let length = data.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
-            print("📨 Received length header: \(length) bytes")
 
             // Receive message payload
-            self.connection?.receive(minimumIncompleteLength: Int(length), maximumLength: Int(length)) { data, _, isComplete, error in
+            self.connection?.receive(minimumIncompleteLength: Int(length), maximumLength: Int(length)) { data, _, isComplete, _ in
                 guard let data = data, !isComplete else {
-                    if let error = error {
-                        print("❌ Error receiving message: \(error)")
-                    } else if isComplete {
-                        print("⚠️ Connection closed while receiving message payload")
-                    }
                     return
                 }
 
-                print("📦 Received message payload: \(data.count) bytes")
                 self.parseMessage(data)
 
                 // Continue receiving next message
@@ -204,38 +168,18 @@ class NetworkClient: NSObject, ObservableObject {
     // MARK: - Message Parsing
 
     private func parseMessage(_ data: Data) {
-        print("🔍 Parsing message...")
-
-        // First, try to peek at the message type
-        if let jsonString = String(data: data, encoding: .utf8) {
-            print("📄 Raw JSON (first 200 chars): \(String(jsonString.prefix(200)))")
-        }
-
         do {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
 
             let message = try decoder.decode(NetworkMessage.self, from: data)
-            print("✅ Successfully parsed message type: \(message.type)")
 
             DispatchQueue.main.async { [weak self] in
                 self?.handleMessage(message)
             }
         } catch {
-            print("❌ Error parsing message: \(error)")
-            if let decodingError = error as? DecodingError {
-                switch decodingError {
-                case .keyNotFound(let key, let context):
-                    print("   Missing key: \(key.stringValue), context: \(context.debugDescription)")
-                case .typeMismatch(let type, let context):
-                    print("   Type mismatch: \(type), context: \(context.debugDescription)")
-                case .valueNotFound(let type, let context):
-                    print("   Value not found: \(type), context: \(context.debugDescription)")
-                case .dataCorrupted(let context):
-                    print("   Data corrupted: \(context.debugDescription)")
-                @unknown default:
-                    print("   Unknown decoding error")
-                }
+            DispatchQueue.main.async { [weak self] in
+                self?.connectionStatus = "Message parsing error"
             }
         }
     }
@@ -243,15 +187,12 @@ class NetworkClient: NSObject, ObservableObject {
     private func handleMessage(_ message: NetworkMessage) {
         switch message.payload {
         case .welcome(let data):
-            print("✅ Connected to server: \(data.deviceName) (v\(data.serverVersion))")
             connectionStatus = "Connected to \(data.deviceName)"
 
         case .historicalStats(let data):
-            print("📊 Received historical stats: \(data.dailyStats.count) days, \(data.topApps.count) apps")
             historicalStats = data
 
         case .timeBlocks(let data):
-            print("📅 Received time blocks for \(data.date): \(data.blocks.count) blocks")
             timeBlocks = data
 
         case .realtimeActivity(let data):
@@ -261,21 +202,13 @@ class NetworkClient: NSObject, ObservableObject {
             // Calculate KPM from last minute's keystrokes
             currentKPM = data.keystrokesLastMinute
 
-        case .keystroke(let data):
-            print("⌨️ Keystroke: \(data.key) in \(data.appBundleIdentifier)")
-
-        case .mouseEvent(let data):
-            print("🖱️ Mouse \(data.eventType) in \(data.appBundleIdentifier)")
-
-        case .iterm2Sessions(let data):
-            print("💻 iTerm2 sessions: \(data.sessions.count)")
+        case .keystroke(_), .mouseEvent(_), .iterm2Sessions(_):
+            break
 
         case .selectedApps(let data):
-            print("✅ Selected apps update: \(data.apps.count) apps")
             selectedApps = data.apps
 
         case .error(let data):
-            print("❌ Server error: \(data.message)")
             connectionStatus = "Error: \(data.message)"
         }
 

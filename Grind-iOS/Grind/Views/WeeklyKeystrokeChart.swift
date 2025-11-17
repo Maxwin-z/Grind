@@ -37,10 +37,14 @@ struct WeeklyKeystrokeChart: View {
                 x: .value("Date", formatDate(entry.date)),
                 y: .value("Keystrokes", entry.thousands)
             )
+            .position(by: .value("App", entry.appName))
             .foregroundStyle(by: .value("App", entry.appName))
             .interpolationMethod(.catmullRom)
-            .foregroundStyle(colorForApp(entry.appName))
         }
+        .chartForegroundStyleScale(
+            domain: uniqueApps,
+            range: uniqueApps.map { colorForApp($0) }
+        )
         .chartYAxis {
             AxisMarks(position: .leading) { value in
                 AxisGridLine()

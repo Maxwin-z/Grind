@@ -171,6 +171,7 @@ class DashboardViewModel: ObservableObject {
             return DailyKeystrokeChartData(date: dateStr, appKeystrokes: apps)
         }
 
+        logChartTables()
         print("✅ Processed \(dailyActivityData.count) days of activity data")
         print("✅ Activity data has \(dailyActivityData.filter { !$0.appActivities.isEmpty }.count) days with data")
         print("✅ Keystroke data has \(dailyKeystrokeData.filter { !$0.appKeystrokes.isEmpty }.count) days with data")
@@ -225,6 +226,58 @@ class DashboardViewModel: ObservableObject {
     private func shouldIncludeApp(named appName: String, filterNames: Set<String>?) -> Bool {
         guard let filterNames = filterNames else { return true }
         return filterNames.contains { $0.caseInsensitiveCompare(appName) == .orderedSame }
+    }
+
+    private func logChartTables() {
+        logActivityTable()
+        logKeystrokeTable()
+    }
+
+    private func logActivityTable() {
+        guard !dailyActivityData.isEmpty else { return }
+        let apps = Set(dailyActivityData.flatMap { $0.appActivities.map(\.appName) }).sorted()
+        print("# activity")
+        print(tableHeader(for: apps))
+
+        for day in dailyActivityData {
+            let values = apps.map { appName in
+                day.appActivities.first { $0.appName == appName }?.duration ?? 0
+            }
+            print(tableRow(for: day.date, values: values))
+        }
+    }
+
+    private func logKeystrokeTable() {
+        guard !dailyKeystrokeData.isEmpty else { return }
+        let apps = Set(dailyKeystrokeData.flatMap { $0.appKeystrokes.map(\.appName) }).sorted()
+        print("# keystrokes")
+        print(tableHeader(for: apps))
+
+        for day in dailyKeystrokeData {
+            let values = apps.map { appName in
+                day.appKeystrokes.first { $0.appName == appName }?.keystrokes ?? 0
+            }
+            print(tableRow(for: day.date, values: values))
+        }
+    }
+
+    private func tableHeader(for apps: [String]) -> String {
+        guard !apps.isEmpty else { return "date" }
+        return "date, " + apps.joined(separator: ", ")
+    }
+
+    private func tableRow(for date: String, values: [Int]) -> String {
+        guard !values.isEmpty else { return formattedDumpDate(from: date) }
+        let joinedValues = values.map { "\($0)" }.joined(separator: ", ")
+        return "\(formattedDumpDate(from: date)), \(joinedValues)"
+    }
+
+    private func formattedDumpDate(from dateString: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: dateString) else { return dateString }
+        formatter.dateFormat = "MMdd"
+        return formatter.string(from: date)
     }
 }
 
