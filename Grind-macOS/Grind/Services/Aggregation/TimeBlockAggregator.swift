@@ -46,6 +46,8 @@ class TimeBlockAggregator {
             activeDuration: 0,
             typingDuration: 0,
             keystrokeCount: 0,
+            mouseMovementCount: 0,
+            mouseClickCount: 0,
             projectName: heartbeat.projectName
         )
 
@@ -57,8 +59,10 @@ class TimeBlockAggregator {
             block.typingDuration += min(2, Int(2))
         }
 
-        // Add keystrokes
+        // Add keystrokes and mouse activity
         block.keystrokeCount += heartbeat.keystrokeCount
+        block.mouseMovementCount += heartbeat.mouseMovementCount
+        block.mouseClickCount += heartbeat.mouseClickCount
 
         // Update cache
         currentBlockCache[cacheKey] = block
@@ -96,10 +100,112 @@ class TimeBlockAggregator {
     /// Aggregate time blocks into daily stats
     /// Should run at end of day or on-demand
     func aggregateToDailyStats(for date: Date) {
-        DispatchQueue.global(qos: .background).async {
-            // This would aggregate time blocks into daily_stats table
-            // Implementation depends on specific requirements
-            print("📊 Aggregating daily stats for \(date)")
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            do {
+                try self?.performDailyAggregation(for: date)
+                print("✅ Daily stats aggregated for \(DailyStats.dateString(from: date))")
+            } catch {
+                print("❌ Error aggregating daily stats: \(error)")
+            }
         }
+    }
+
+    /// Perform the actual daily aggregation logic
+    private func performDailyAggregation(for date: Date) throws {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+
+        // Get all time blocks for this day
+        let blocks = try timeBlockRepo.getBlocks(from: startOfDay, to: endOfDay)
+
+        guard !blocks.isEmpty else {
+            print("⚠️ No time blocks found for \(DailyStats.dateString(from: date))")
+            return
+        }
+
+        // Group blocks by app name
+        let groupedBlocks = Dictionary(grouping: blocks) { $0.appName }
+
+        let dailyStatsRepo = DailyStatsRepository.shared
+        let dateString = DailyStats.dateString(from: date)
+
+        // Aggregate each app's data
+        for (appName, appBlocks) in groupedBlocks {
+            let category = appBlocks.first?.category ?? "Other"
+
+            // Sum up durations and counts
+            var totalDuration = 0
+            var typingDuration = 0
+            var keystrokeCount = 0
+            var mouseMovementCount = 0
+            var mouseClickCount = 0
+            var firstActive: Date?
+            var lastActive: Date?
+
+            for block in appBlocks {
+                totalDuration += block.activeDuration
+                typingDuration += block.typingDuration
+                keystrokeCount += block.keystrokeCount
+                mouseMovementCount += block.mouseMovementCount
+                mouseClickCount += block.mouseClickCount
+
+                // Track first and last active timestamps
+                if firstActive == nil || block.blockStart < firstActive! {
+                    firstActive = block.blockStart
+                }
+                if lastActive == nil || block.blockStart > lastActive! {
+                    lastActive = block.blockStart
+                }
+            }
+
+            // Calculate session count (gaps > 120s between blocks)
+            let sessionsCount = calculateSessionCount(from: appBlocks)
+
+            // Create or update daily stats record
+            let stats = DailyStats(
+                date: dateString,
+                appName: appName,
+                category: category,
+                totalDuration: totalDuration,
+                typingDuration: typingDuration,
+                keystrokeCount: keystrokeCount,
+                mouseMovementCount: mouseMovementCount,
+                mouseClickCount: mouseClickCount,
+                sessionsCount: sessionsCount,
+                firstActive: firstActive,
+                lastActive: lastActive
+            )
+
+            try dailyStatsRepo.save(stats)
+        }
+
+        print("📊 Aggregated \(groupedBlocks.count) apps into daily stats for \(dateString)")
+    }
+
+    /// Calculate number of sessions based on time gaps between blocks
+    /// A new session starts when gap > 120 seconds (2 minutes)
+    private func calculateSessionCount(from blocks: [TimeBlock]) -> Int {
+        guard !blocks.isEmpty else { return 0 }
+
+        // Sort blocks by time
+        let sortedBlocks = blocks.sorted { $0.blockStart < $1.blockStart }
+
+        var sessionCount = 1
+        var previousBlockEnd = sortedBlocks[0].blockStart.addingTimeInterval(300) // 5 minutes
+
+        for i in 1..<sortedBlocks.count {
+            let currentBlockStart = sortedBlocks[i].blockStart
+            let gap = currentBlockStart.timeIntervalSince(previousBlockEnd)
+
+            // If gap > 120 seconds, it's a new session
+            if gap > 120 {
+                sessionCount += 1
+            }
+
+            previousBlockEnd = currentBlockStart.addingTimeInterval(300)
+        }
+
+        return sessionCount
     }
 }

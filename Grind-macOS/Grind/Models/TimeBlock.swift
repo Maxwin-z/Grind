@@ -15,9 +15,11 @@ struct TimeBlock: Codable {
     var blockStart: Date
     var appName: String
     var category: String
-    var activeDuration: Int      // seconds of active time
-    var typingDuration: Int      // seconds of typing time
+    var activeDuration: Int         // seconds of active time
+    var typingDuration: Int         // seconds of typing time
     var keystrokeCount: Int
+    var mouseMovementCount: Int     // mouse movements in this block
+    var mouseClickCount: Int        // mouse clicks in this block
     var projectName: String?
 
     init(
@@ -27,6 +29,8 @@ struct TimeBlock: Codable {
         activeDuration: Int = 0,
         typingDuration: Int = 0,
         keystrokeCount: Int = 0,
+        mouseMovementCount: Int = 0,
+        mouseClickCount: Int = 0,
         projectName: String? = nil
     ) {
         self.blockStart = blockStart
@@ -35,6 +39,8 @@ struct TimeBlock: Codable {
         self.activeDuration = activeDuration
         self.typingDuration = typingDuration
         self.keystrokeCount = keystrokeCount
+        self.mouseMovementCount = mouseMovementCount
+        self.mouseClickCount = mouseClickCount
         self.projectName = projectName
     }
 }
@@ -50,6 +56,8 @@ extension TimeBlock: FetchableRecord, PersistableRecord {
         static let activeDuration = Column("activeDuration")
         static let typingDuration = Column("typingDuration")
         static let keystrokeCount = Column("keystrokeCount")
+        static let mouseMovementCount = Column("mouseMovementCount")
+        static let mouseClickCount = Column("mouseClickCount")
         static let projectName = Column("projectName")
     }
 

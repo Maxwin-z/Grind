@@ -43,21 +43,30 @@ class NetworkService: ObservableObject {
             parameters.acceptLocalOnly = true // Only accept connections from local network
             parameters.includePeerToPeer = true
 
-            listener = try NWListener(using: parameters, on: port)
+            // Add Bonjour service advertisement
+            let txtRecord = NWTXTRecord(["version": "1.0"])
+            parameters.requiredInterfaceType = .wifi
+            parameters.serviceClass = .responsiveData
 
-            listener?.stateUpdateHandler = { [weak self] state in
+            // Advertise as "_grind._tcp" service
+            let listener = try NWListener(using: parameters, on: port)
+            listener.service = NWListener.Service(name: "Grind", type: "_grind._tcp", txtRecord: txtRecord)
+
+            self.listener = listener
+
+            listener.stateUpdateHandler = { [weak self] state in
                 Task { @MainActor [weak self] in
                     self?.handleListenerStateChange(state)
                 }
             }
 
-            listener?.newConnectionHandler = { [weak self] connection in
+            listener.newConnectionHandler = { [weak self] connection in
                 Task { @MainActor [weak self] in
                     self?.handleNewConnection(connection)
                 }
             }
 
-            listener?.start(queue: queue)
+            listener.start(queue: queue)
             logger.info("Network server started on port \(self.port)")
 
         } catch {
@@ -187,13 +196,15 @@ class NetworkService: ObservableObject {
 
                     let totalDuration = stats.reduce(0) { $0 + $1.totalDuration }
                     let totalKeystrokes = stats.reduce(0) { $0 + $1.keystrokeCount }
+                    let totalMouseMovements = stats.reduce(0) { $0 + $1.mouseMovementCount }
+                    let totalMouseClicks = stats.reduce(0) { $0 + $1.mouseClickCount }
 
                     dailyStats.append(DailyStatsData(
                         date: dateString,
                         totalSeconds: totalDuration,
                         totalKeystrokes: totalKeystrokes,
-                        totalMouseMovements: 0, // Not tracked in DailyStats yet
-                        totalMouseClicks: 0,    // Not tracked in DailyStats yet
+                        totalMouseMovements: totalMouseMovements,
+                        totalMouseClicks: totalMouseClicks,
                         appCount: stats.count
                     ))
                 }
@@ -217,8 +228,8 @@ class NetworkService: ObservableObject {
                         iconPath: nil,
                         totalSeconds: stats.totalDuration,
                         keystrokes: stats.keystrokeCount,
-                        mouseMovements: 0,  // Not tracked yet
-                        mouseClicks: 0,     // Not tracked yet
+                        mouseMovements: stats.mouseMovementCount,
+                        mouseClicks: stats.mouseClickCount,
                         lastActive: stats.lastActive
                     )
                 }

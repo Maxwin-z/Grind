@@ -87,6 +87,24 @@ class DatabaseManager {
             print("✅ Added mouse tracking columns to heartbeats table")
         }
 
+        // Migration v4: Add mouse tracking to daily_stats
+        migrator.registerMigration("v4_add_mouse_to_daily_stats") { db in
+            try db.alter(table: "daily_stats") { t in
+                t.add(column: "mouseMovementCount", .integer).notNull().defaults(to: 0)
+                t.add(column: "mouseClickCount", .integer).notNull().defaults(to: 0)
+            }
+            print("✅ Added mouse tracking columns to daily_stats table")
+        }
+
+        // Migration v5: Add mouse tracking to blocks_5min
+        migrator.registerMigration("v5_add_mouse_to_blocks") { db in
+            try db.alter(table: "blocks_5min") { t in
+                t.add(column: "mouseMovementCount", .integer).notNull().defaults(to: 0)
+                t.add(column: "mouseClickCount", .integer).notNull().defaults(to: 0)
+            }
+            print("✅ Added mouse tracking columns to blocks_5min table")
+        }
+
         // Run migrations
         try migrator.migrate(dbQueue!)
     }

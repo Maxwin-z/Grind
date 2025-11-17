@@ -2,20 +2,14 @@
 //  ContentView.swift
 //  Grind
 //
-//  Created by Maxwin on 2025/11/17.
+//  Main content view - delegates to DashboardView
 //
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        DashboardView()
     }
 }
 

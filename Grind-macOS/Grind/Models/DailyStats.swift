@@ -12,15 +12,17 @@ import GRDB
 /// Daily aggregated statistics per app/category
 /// Enables fast dashboard queries without scanning all heartbeats
 struct DailyStats: Codable {
-    var date: String            // YYYY-MM-DD format
+    var date: String                // YYYY-MM-DD format
     var appName: String
     var category: String
-    var totalDuration: Int      // Total active seconds
-    var typingDuration: Int     // Seconds spent typing
-    var keystrokeCount: Int     // Total keystrokes
-    var sessionsCount: Int      // Number of separate sessions
-    var firstActive: Date?      // First activity timestamp
-    var lastActive: Date?       // Last activity timestamp
+    var totalDuration: Int          // Total active seconds
+    var typingDuration: Int         // Seconds spent typing
+    var keystrokeCount: Int         // Total keystrokes
+    var mouseMovementCount: Int     // Total mouse movements
+    var mouseClickCount: Int        // Total mouse clicks
+    var sessionsCount: Int          // Number of separate sessions
+    var firstActive: Date?          // First activity timestamp
+    var lastActive: Date?           // Last activity timestamp
 
     init(
         date: String,
@@ -29,6 +31,8 @@ struct DailyStats: Codable {
         totalDuration: Int = 0,
         typingDuration: Int = 0,
         keystrokeCount: Int = 0,
+        mouseMovementCount: Int = 0,
+        mouseClickCount: Int = 0,
         sessionsCount: Int = 0,
         firstActive: Date? = nil,
         lastActive: Date? = nil
@@ -39,6 +43,8 @@ struct DailyStats: Codable {
         self.totalDuration = totalDuration
         self.typingDuration = typingDuration
         self.keystrokeCount = keystrokeCount
+        self.mouseMovementCount = mouseMovementCount
+        self.mouseClickCount = mouseClickCount
         self.sessionsCount = sessionsCount
         self.firstActive = firstActive
         self.lastActive = lastActive
@@ -56,6 +62,8 @@ extension DailyStats: FetchableRecord, PersistableRecord {
         static let totalDuration = Column("totalDuration")
         static let typingDuration = Column("typingDuration")
         static let keystrokeCount = Column("keystrokeCount")
+        static let mouseMovementCount = Column("mouseMovementCount")
+        static let mouseClickCount = Column("mouseClickCount")
         static let sessionsCount = Column("sessionsCount")
         static let firstActive = Column("firstActive")
         static let lastActive = Column("lastActive")
