@@ -13,6 +13,7 @@ enum NetworkMessageType: String, Codable {
     case welcome
     case historicalStats
     case timeBlocks
+    case dailyStatsUpdate
     case realtimeActivity
     case heartbeat
     case keystroke
@@ -46,6 +47,9 @@ struct NetworkMessage: Codable {
         case .timeBlocks:
             let data = try TimeBlocksData(from: decoder)
             payload = .timeBlocks(data)
+        case .dailyStatsUpdate:
+            let data = try DailyStatsUpdateData(from: decoder)
+            payload = .dailyStatsUpdate(data)
         case .realtimeActivity:
             let data = try RealtimeActivityData(from: decoder)
             payload = .realtimeActivity(data)
@@ -81,6 +85,7 @@ enum PayloadData: Codable {
     case welcome(WelcomeData)
     case historicalStats(HistoricalStatsData)
     case timeBlocks(TimeBlocksData)
+    case dailyStatsUpdate(DailyStatsUpdateData)
     case realtimeActivity(RealtimeActivityData)
     case heartbeat(HeartbeatData)
     case keystroke(KeystrokeData)
@@ -103,6 +108,8 @@ enum PayloadData: Codable {
             self = .historicalStats(historical)
         } else if let timeBlocks = try? container.decode(TimeBlocksData.self) {
             self = .timeBlocks(timeBlocks)
+        } else if let dailyStatsUpdate = try? container.decode(DailyStatsUpdateData.self) {
+            self = .dailyStatsUpdate(dailyStatsUpdate)
         } else if let realtime = try? container.decode(RealtimeActivityData.self) {
             self = .realtimeActivity(realtime)
         } else if let heartbeat = try? container.decode(HeartbeatData.self) {
@@ -131,6 +138,8 @@ enum PayloadData: Codable {
         case .historicalStats(let data):
             try container.encode(data)
         case .timeBlocks(let data):
+            try container.encode(data)
+        case .dailyStatsUpdate(let data):
             try container.encode(data)
         case .realtimeActivity(let data):
             try container.encode(data)
@@ -212,6 +221,11 @@ struct TimeBlockData: Codable, Identifiable {
     let keystrokes: Int
     let mouseMovements: Int
     let mouseClicks: Int
+}
+
+struct DailyStatsUpdateData: Codable {
+    let dailyStats: DailyStatsData
+    let dailyAppBreakdown: DailyAppBreakdownData?
 }
 
 struct SelectedAppsData: Codable {

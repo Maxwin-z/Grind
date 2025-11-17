@@ -109,6 +109,15 @@ class TimeBlockAggregator {
                     }
                 }
                 print("💾 Flushed \(blocksToSave.count) time blocks to database")
+
+                // Notify listeners (e.g., NetworkService) which calendar days changed
+                let calendar = Calendar.current
+                let affectedDates = Array(Set(blocksToSave.map { calendar.startOfDay(for: $0.blockStart) }))
+                NotificationCenter.default.post(
+                    name: .timeBlocksDidUpdate,
+                    object: self,
+                    userInfo: ["dates": affectedDates]
+                )
             } catch {
                 print("❌ Error flushing time blocks: \(error)")
             }
@@ -259,4 +268,10 @@ class TimeBlockAggregator {
 
         return sessionCount
     }
+}
+
+// MARK: - Notifications
+
+extension Notification.Name {
+    static let timeBlocksDidUpdate = Notification.Name("TimeBlockAggregator.timeBlocksDidUpdate")
 }

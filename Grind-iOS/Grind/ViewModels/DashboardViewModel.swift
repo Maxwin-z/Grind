@@ -93,6 +93,14 @@ class DashboardViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Process incremental daily stats updates
+        networkClient.$dailyStatsUpdate
+            .compactMap { $0 }
+            .sink { [weak self] update in
+                self?.processDailyStatsUpdate(update)
+            }
+            .store(in: &cancellables)
+
         // Process realtime activity
         networkClient.$realtimeActivity
             .compactMap { $0 }
@@ -200,6 +208,35 @@ class DashboardViewModel: ObservableObject {
     private func processRealtimeActivity(_ data: RealtimeActivityData) {
         currentApp = data.activeApp.appName
         isTyping = data.isTyping
+    }
+
+    private func processDailyStatsUpdate(_ update: DailyStatsUpdateData) {
+        guard var historical = latestHistoricalData else {
+            print("⚠️ Received daily stats update before initial history; ignoring")
+            return
+        }
+
+        print("🔄 Applying daily stats update for \(update.dailyStats.date)")
+
+        var updatedStats = historical.dailyStats.filter { $0.date != update.dailyStats.date }
+        updatedStats.append(update.dailyStats)
+        updatedStats.sort { $0.date < $1.date }
+
+        var updatedBreakdown = historical.dailyAppBreakdown ?? []
+        updatedBreakdown.removeAll { $0.date == update.dailyStats.date }
+        if let breakdown = update.dailyAppBreakdown {
+            updatedBreakdown.append(breakdown)
+            updatedBreakdown.sort { $0.date < $1.date }
+        }
+
+        historical = HistoricalStatsData(
+            dailyStats: updatedStats,
+            topApps: historical.topApps,
+            dailyAppBreakdown: updatedBreakdown
+        )
+
+        latestHistoricalData = historical
+        recalculateHistoricalCharts()
     }
 
     private func processKeystroke(_ data: KeystrokeData) {

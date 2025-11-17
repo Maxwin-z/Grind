@@ -23,6 +23,7 @@ class NetworkService: ObservableObject {
     private let queue = DispatchQueue(label: "me.maxwin.Grind.network")
     private let dataSharingPreferences = AppDataSharingPreferences.shared
     private var selectionObserver: NSObjectProtocol?
+    private var timeBlocksObserver: NSObjectProtocol?
 
     @Published var isRunning = false
     @Published var connectedClients = 0
@@ -38,10 +39,23 @@ class NetworkService: ObservableObject {
             self?.sendHistoricalStatsToAllConnections()
             self?.sendTodayTimeBlocksToAllConnections()
         }
+
+        timeBlocksObserver = NotificationCenter.default.addObserver(
+            forName: .timeBlocksDidUpdate,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            let dates = notification.userInfo?["dates"] as? [Date] ?? [Date()]
+            self.handleTimeBlocksUpdated(dates: dates)
+        }
     }
 
     deinit {
         if let observer = selectionObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = timeBlocksObserver {
             NotificationCenter.default.removeObserver(observer)
         }
     }
@@ -217,52 +231,21 @@ class NetworkService: ObservableObject {
                     logger.error("Failed to ensure daily stats coverage: \(error.localizedDescription)")
                 }
 
-                // Fetch daily stats for last 30 days
-                var dailyStats: [DailyStatsData] = []
-                var dailyAppBreakdown: [DailyAppBreakdownData] = []
+        // Fetch daily stats for last 30 days
+        var dailyStats: [DailyStatsData] = []
+        var dailyAppBreakdown: [DailyAppBreakdownData] = []
 
-                for dayOffset in stride(from: maxHistoricalDays - 1, through: 0, by: -1) {
-                    let date = calendar.date(byAdding: .day, value: -dayOffset, to: now)!
-                    let dateString = dateFormatter.string(from: date)
-
-                    let stats = try await db.read { db in
-                        try DailyStats
-                            .filter(Column("date") == dateString)
-                            .fetchAll(db)
-                    }
-
-                    let filteredStats = stats.filter { selectionSnapshot.isAppSelected(bundleId: nil, appName: $0.appName) }
-
-                    let totalDuration = filteredStats.reduce(0) { $0 + $1.totalDuration }
-                    let totalKeystrokes = filteredStats.reduce(0) { $0 + $1.keystrokeCount }
-                    let totalMouseMovements = filteredStats.reduce(0) { $0 + $1.mouseMovementCount }
-                    let totalMouseClicks = filteredStats.reduce(0) { $0 + $1.mouseClickCount }
-
-                    dailyStats.append(DailyStatsData(
-                        date: dateString,
-                        totalSeconds: totalDuration,
-                        totalKeystrokes: totalKeystrokes,
-                        totalMouseMovements: totalMouseMovements,
-                        totalMouseClicks: totalMouseClicks,
-                        appCount: filteredStats.count
-                    ))
-
-                    let appMetrics = filteredStats.map { stat in
-                        DailyAppMetricsData(
-                            appName: stat.appName,
-                            duration: stat.totalDuration,
-                            keystrokes: stat.keystrokeCount,
-                            category: stat.category,
-                            colorHex: self.getColorHex(bundleId: nil, appName: stat.appName)
-                        )
-                    }
-                    .sorted { $0.duration > $1.duration }
-
-                    dailyAppBreakdown.append(DailyAppBreakdownData(
-                        date: dateString,
-                        apps: appMetrics
-                    ))
-                }
+        for dayOffset in stride(from: maxHistoricalDays - 1, through: 0, by: -1) {
+            guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: now) else { continue }
+            let payload = try await self.buildDailyStatsPayload(
+                for: date,
+                dateFormatter: dateFormatter,
+                selectionSnapshot: selectionSnapshot,
+                db: db
+            )
+            dailyStats.append(payload.stats)
+            dailyAppBreakdown.append(payload.breakdown)
+        }
 
                 // Fetch top apps (last 7 days)
                 let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now)!
@@ -344,6 +327,40 @@ class NetworkService: ObservableObject {
         }
     }
 
+    private func sendDailyStatsUpdate(for date: Date = Date(), to connection: NWConnection? = nil) {
+        let selectionSnapshot = dataSharingPreferences.snapshot()
+
+        Task {
+            do {
+                try TimeBlockAggregator.shared.aggregateToDailyStatsSync(for: date)
+
+                guard let db = DatabaseManager.shared.getDatabase() else {
+                    logger.error("Database not initialized")
+                    return
+                }
+
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                let payload = try await self.buildDailyStatsPayload(
+                    for: date,
+                    dateFormatter: dateFormatter,
+                    selectionSnapshot: selectionSnapshot,
+                    db: db
+                )
+
+                let message = DailyStatsUpdateMessage(
+                    dailyStats: payload.stats,
+                    dailyAppBreakdown: payload.breakdown
+                )
+                sendMessage(message, to: connection)
+
+            } catch {
+                logger.error("Failed to send daily stats update: \(error.localizedDescription)")
+            }
+        }
+    }
+
     private func sendSelectedAppsList(to connection: NWConnection? = nil) {
         let selectedApps = dataSharingPreferences.selectedAppsList()
         let appData = selectedApps.map {
@@ -368,6 +385,25 @@ class NetworkService: ObservableObject {
     private func sendTodayTimeBlocksToAllConnections() {
         connections.forEach { connection in
             sendTodayTimeBlocks(to: connection)
+        }
+    }
+
+    private func handleTimeBlocksUpdated(dates: [Date]) {
+        guard !dates.isEmpty else { return }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var shouldRefreshTimeline = false
+
+        dates.forEach { date in
+            if calendar.isDate(date, inSameDayAs: today) {
+                shouldRefreshTimeline = true
+            }
+            sendDailyStatsUpdate(for: date)
+        }
+
+        if shouldRefreshTimeline {
+            sendTodayTimeBlocksToAllConnections()
         }
     }
 
@@ -396,6 +432,55 @@ class NetworkService: ObservableObject {
             guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: referenceDate) else { continue }
             try aggregator.ensureDailyStats(for: date)
         }
+    }
+
+    private func buildDailyStatsPayload(
+        for date: Date,
+        dateFormatter: DateFormatter,
+        selectionSnapshot: AppDataSharingSnapshot,
+        db: DatabaseWriter
+    ) async throws -> (stats: DailyStatsData, breakdown: DailyAppBreakdownData) {
+        let dateString = dateFormatter.string(from: date)
+
+        let stats = try await db.read { db in
+            try DailyStats
+                .filter(Column("date") == dateString)
+                .fetchAll(db)
+        }
+
+        let filteredStats = stats.filter { selectionSnapshot.isAppSelected(bundleId: nil, appName: $0.appName) }
+
+        let totalDuration = filteredStats.reduce(0) { $0 + $1.totalDuration }
+        let totalKeystrokes = filteredStats.reduce(0) { $0 + $1.keystrokeCount }
+        let totalMouseMovements = filteredStats.reduce(0) { $0 + $1.mouseMovementCount }
+        let totalMouseClicks = filteredStats.reduce(0) { $0 + $1.mouseClickCount }
+
+        let dailyStats = DailyStatsData(
+            date: dateString,
+            totalSeconds: totalDuration,
+            totalKeystrokes: totalKeystrokes,
+            totalMouseMovements: totalMouseMovements,
+            totalMouseClicks: totalMouseClicks,
+            appCount: filteredStats.count
+        )
+
+        let appMetrics = filteredStats.map { stat in
+            DailyAppMetricsData(
+                appName: stat.appName,
+                duration: stat.totalDuration,
+                keystrokes: stat.keystrokeCount,
+                category: stat.category,
+                colorHex: self.getColorHex(bundleId: nil, appName: stat.appName)
+            )
+        }
+        .sorted { $0.duration > $1.duration }
+
+        let breakdown = DailyAppBreakdownData(
+            date: dateString,
+            apps: appMetrics
+        )
+
+        return (dailyStats, breakdown)
     }
 
     private func sendData(_ data: Data, to connection: NWConnection) {

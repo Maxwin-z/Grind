@@ -18,6 +18,7 @@ enum MessageType: String, Codable {
     case welcome
     case historicalStats
     case timeBlocks
+    case dailyStatsUpdate
     case realtimeActivity
     case keystroke
     case mouseEvent
@@ -115,6 +116,20 @@ struct TimeBlockData: Codable {
     let mouseMovements: Int
     let mouseClicks: Int
     let colorHex: String?
+}
+
+/// Incremental update for a single day's stats
+struct DailyStatsUpdateMessage: NetworkMessage {
+    let type: MessageType = .dailyStatsUpdate
+    let timestamp: Date
+    let dailyStats: DailyStatsData
+    let dailyAppBreakdown: DailyAppBreakdownData?
+
+    init(dailyStats: DailyStatsData, dailyAppBreakdown: DailyAppBreakdownData?) {
+        self.timestamp = Date()
+        self.dailyStats = dailyStats
+        self.dailyAppBreakdown = dailyAppBreakdown
+    }
 }
 
 /// Real-time activity update
