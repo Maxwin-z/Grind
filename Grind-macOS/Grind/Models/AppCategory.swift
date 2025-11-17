@@ -18,6 +18,7 @@ struct AppCategory: Codable {
     var isCodeEditor: Bool
     var isTerminal: Bool
     var userOverride: Bool      // True if user manually changed category
+    var color: String            // Hex color code (without #)
 
     init(
         bundleId: String,
@@ -25,7 +26,8 @@ struct AppCategory: Codable {
         category: String,
         isCodeEditor: Bool = false,
         isTerminal: Bool = false,
-        userOverride: Bool = false
+        userOverride: Bool = false,
+        color: String? = nil
     ) {
         self.bundleId = bundleId
         self.appName = appName
@@ -33,6 +35,7 @@ struct AppCategory: Codable {
         self.isCodeEditor = isCodeEditor
         self.isTerminal = isTerminal
         self.userOverride = userOverride
+        self.color = color ?? DatabaseManager.generateColor(forBundleId: bundleId)
     }
 }
 
@@ -47,6 +50,7 @@ extension AppCategory: FetchableRecord, PersistableRecord {
         static let isCodeEditor = Column("isCodeEditor")
         static let isTerminal = Column("isTerminal")
         static let userOverride = Column("userOverride")
+        static let color = Column("color")
     }
 }
 

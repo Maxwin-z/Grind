@@ -12,6 +12,7 @@ import UIKit
 struct WeeklyActivityChart: View {
     let data: [DailyActivityChartData]
     let appMetadata: [String: SelectedAppData]
+    @State private var selectedDate: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -40,31 +41,39 @@ struct WeeklyActivityChart: View {
                         y: .value("Duration", entry.hours)
                     )
                     .foregroundStyle(by: .value("App", series.appName))
+                    .position(by: .value("App", series.appName))
                     .interpolationMethod(.catmullRom)
                 }
+            }
+            if let selectedDate {
+                RuleMark(x: .value("Date", selectedDate))
+                    .foregroundStyle(Color.secondary.opacity(0.8))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
             }
         }
         .chartForegroundStyleScale(
             domain: uniqueApps,
             range: uniqueApps.map { styleForApp($0) }
         )
+        .chartYScale(domain: 0...max(maxDailyActivityHours * 1.1, 1.0))
+        .chartXSelection(value: $selectedDate)
         .chartYAxis {
-            AxisMarks(position: .leading) { value in
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) { value in
                 AxisGridLine()
                 AxisValueLabel {
                     if let hours = value.as(Double.self) {
-                        Text("\(Int(hours))h")
+                        Text(formatHours(hours))
                             .font(.caption)
                     }
                 }
             }
         }
         .chartXAxis {
-            AxisMarks { value in
+            AxisMarks(values: .stride(by: .day, count: 1)) { value in
                 AxisGridLine()
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
-                        Text(formatShortDate(date))
+                        Text(formatDateLabel(date))
                             .font(.caption)
                     }
                 }
@@ -74,6 +83,13 @@ struct WeeklyActivityChart: View {
             legendView
         }
         .frame(height: 220)
+        .overlay(alignment: .topTrailing) {
+            if let dateLabel = selectedDateLabel, !selectionRows.isEmpty {
+                ChartSelectionSummaryCard(title: dateLabel, rows: selectionRows)
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
+            }
+        }
     }
 
     private var legendView: some View {
@@ -119,6 +135,10 @@ struct WeeklyActivityChart: View {
         }
     }
 
+    private var entriesByDate: [Date: [ActivityEntry]] {
+        Dictionary(grouping: activityEntries, by: { $0.date })
+    }
+
     private var activitySeries: [ActivitySeries] {
         let grouped = Dictionary(grouping: activityEntries, by: { $0.appName })
         return grouped.map { appName, entries in
@@ -135,8 +155,35 @@ struct WeeklyActivityChart: View {
         Self.isoDateFormatter.date(from: dateString) ?? Date()
     }
 
-    private func formatShortDate(_ date: Date) -> String {
-        Self.weekdayFormatter.string(from: date)
+    private var maxDailyActivityHours: Double {
+        let dailyTotals = Dictionary(grouping: activityEntries, by: { $0.date })
+            .mapValues { entries in
+                entries.reduce(0.0) { $0 + $1.hours }
+            }
+        return max(dailyTotals.values.max() ?? 1.0, 1.0)
+    }
+
+    private var selectedDateLabel: String? {
+        guard let selectedDate else { return nil }
+        return formatDateLabel(selectedDate)
+    }
+
+    private var selectionRows: [ChartSelectionSummaryRow] {
+        guard let selectedDate, let entries = entriesByDate[selectedDate] else { return [] }
+        return entries
+            .sorted { $0.hours > $1.hours }
+            .map { entry in
+                ChartSelectionSummaryRow(
+                    id: entry.appName,
+                    color: colorForApp(entry.appName),
+                    label: entry.appName,
+                    value: formatDuration(hours: entry.hours)
+                )
+            }
+    }
+
+    private func formatDateLabel(_ date: Date) -> String {
+        Self.dateLabelFormatter.string(from: date)
     }
 
     private func colorForApp(_ appName: String) -> Color {
@@ -235,12 +282,36 @@ struct WeeklyActivityChart: View {
         return formatter
     }()
 
-    private static let weekdayFormatter: DateFormatter = {
+    private static let dateLabelFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "E"
+        formatter.dateFormat = "MMM d"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter
     }()
+
+    private func formatDuration(hours: Double) -> String {
+        let totalMinutes = Int((hours * 60).rounded())
+        let h = totalMinutes / 60
+        let m = totalMinutes % 60
+        if h > 0 && m > 0 {
+            return "\(h)h \(m)m"
+        } else if h > 0 {
+            return "\(h)h"
+        } else {
+            return "\(m)m"
+        }
+    }
+
+    private func formatHours(_ hours: Double) -> String {
+        if hours < 0.1 {
+            return "0h"
+        } else if hours < 1.0 {
+            let minutes = Int((hours * 60).rounded())
+            return "\(minutes)m"
+        } else {
+            return String(format: "%.1fh", hours)
+        }
+    }
 }
 
 #if DEBUG

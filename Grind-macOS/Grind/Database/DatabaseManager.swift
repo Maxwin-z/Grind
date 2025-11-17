@@ -105,6 +105,17 @@ class DatabaseManager {
             print("✅ Added mouse tracking columns to blocks_5min table")
         }
 
+        // Migration v6: Add color column to app_categories
+        migrator.registerMigration("v6_add_app_color") { db in
+            try db.alter(table: "app_categories") { t in
+                // Default to purple color (index 1 in new 8-color palette)
+                t.add(column: "color", .text).notNull().defaults(to: "715DF2")
+            }
+            // Update existing rows with deterministic colors based on bundle ID
+            try self.updateExistingAppColors(db)
+            print("✅ Added color column to app_categories table")
+        }
+
         // Run migrations
         try migrator.migrate(dbQueue!)
     }
@@ -246,5 +257,26 @@ class DatabaseManager {
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
+    }
+
+    // MARK: - Color Generation
+
+    /// Generate deterministic color for bundle ID
+    /// Same bundle ID always gets the same color
+    /// Uses shared color generator for consistency
+    static func generateColor(forBundleId bundleId: String) -> String {
+        // Use AppColorGenerator to ensure consistency across the app
+        let hex = AppColorGenerator.colorHex(forBundleIdentifier: bundleId, appName: "")
+        // Remove the # prefix for database storage
+        return hex.replacingOccurrences(of: "#", with: "")
+    }
+
+    /// Update existing app categories with deterministic colors
+    private func updateExistingAppColors(_ db: Database) throws {
+        let categories = try AppCategory.fetchAll(db)
+        for var category in categories {
+            category.color = DatabaseManager.generateColor(forBundleId: category.bundleId)
+            try category.update(db)
+        }
     }
 }

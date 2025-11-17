@@ -12,6 +12,7 @@ import UIKit
 struct WeeklyKeystrokeChart: View {
     let data: [DailyKeystrokeChartData]
     let appMetadata: [String: SelectedAppData]
+    @State private var selectedDate: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -40,31 +41,39 @@ struct WeeklyKeystrokeChart: View {
                         y: .value("Keystrokes", entry.thousands)
                     )
                     .foregroundStyle(by: .value("App", series.appName))
+                    .position(by: .value("App", series.appName))
                     .interpolationMethod(.catmullRom)
                 }
+            }
+            if let selectedDate {
+                RuleMark(x: .value("Date", selectedDate))
+                    .foregroundStyle(Color.secondary.opacity(0.8))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
             }
         }
         .chartForegroundStyleScale(
             domain: uniqueApps,
             range: uniqueApps.map { styleForApp($0) }
         )
+        .chartYScale(domain: 0...max(maxDailyKeystrokesThousands * 1.1, 0.5))
+        .chartXSelection(value: $selectedDate)
         .chartYAxis {
-            AxisMarks(position: .leading) { value in
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) { value in
                 AxisGridLine()
                 AxisValueLabel {
                     if let thousands = value.as(Double.self) {
-                        Text("\(Int(thousands))K")
+                        Text(formatThousands(thousands))
                             .font(.caption)
                     }
                 }
             }
         }
         .chartXAxis {
-            AxisMarks { value in
+            AxisMarks(values: .stride(by: .day, count: 1)) { value in
                 AxisGridLine()
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
-                        Text(formatShortDate(date))
+                        Text(formatDateLabel(date))
                             .font(.caption)
                     }
                 }
@@ -74,6 +83,13 @@ struct WeeklyKeystrokeChart: View {
             legendView
         }
         .frame(height: 220)
+        .overlay(alignment: .topTrailing) {
+            if let dateLabel = selectedDateLabel, !selectionRows.isEmpty {
+                ChartSelectionSummaryCard(title: dateLabel, rows: selectionRows)
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
+            }
+        }
     }
 
     private var legendView: some View {
@@ -113,10 +129,15 @@ struct WeeklyKeystrokeChart: View {
                 KeystrokeEntry(
                     date: dateValue(dayData.date),
                     appName: appKeystroke.appName,
-                    thousands: Double(appKeystroke.keystrokes) / 1000.0
+                    thousands: Double(appKeystroke.keystrokes) / 1000.0,
+                    count: appKeystroke.keystrokes
                 )
             }
         }
+    }
+
+    private var entriesByDate: [Date: [KeystrokeEntry]] {
+        Dictionary(grouping: keystrokeEntries, by: { $0.date })
     }
 
     private var keystrokeSeries: [KeystrokeSeries] {
@@ -135,8 +156,35 @@ struct WeeklyKeystrokeChart: View {
         Self.isoDateFormatter.date(from: dateString) ?? Date()
     }
 
-    private func formatShortDate(_ date: Date) -> String {
-        Self.weekdayFormatter.string(from: date)
+    private var maxDailyKeystrokesThousands: Double {
+        let dailyTotals = Dictionary(grouping: keystrokeEntries, by: { $0.date })
+            .mapValues { entries in
+                entries.reduce(0.0) { $0 + $1.thousands }
+            }
+        return max(dailyTotals.values.max() ?? 1.0, 1.0)
+    }
+
+    private var selectedDateLabel: String? {
+        guard let selectedDate else { return nil }
+        return formatDateLabel(selectedDate)
+    }
+
+    private var selectionRows: [ChartSelectionSummaryRow] {
+        guard let selectedDate, let entries = entriesByDate[selectedDate] else { return [] }
+        return entries
+            .sorted { $0.count > $1.count }
+            .map { entry in
+                ChartSelectionSummaryRow(
+                    id: entry.appName,
+                    color: colorForApp(entry.appName),
+                    label: entry.appName,
+                    value: formatKeystrokes(entry.count)
+                )
+            }
+    }
+
+    private func formatDateLabel(_ date: Date) -> String {
+        Self.dateLabelFormatter.string(from: date)
     }
 
     private func colorForApp(_ appName: String) -> Color {
@@ -220,6 +268,7 @@ struct WeeklyKeystrokeChart: View {
         let date: Date
         let appName: String
         let thousands: Double
+        let count: Int
     }
 
     private struct KeystrokeSeries: Identifiable {
@@ -235,12 +284,34 @@ struct WeeklyKeystrokeChart: View {
         return formatter
     }()
 
-    private static let weekdayFormatter: DateFormatter = {
+    private static let dateLabelFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "E"
+        formatter.dateFormat = "MMM d"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter
     }()
+
+    private static let decimalFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter
+    }()
+
+    private func formatKeystrokes(_ count: Int) -> String {
+        let formatted = Self.decimalFormatter.string(from: NSNumber(value: count)) ?? "\(count)"
+        return "\(formatted) keys"
+    }
+
+    private func formatThousands(_ thousands: Double) -> String {
+        if thousands < 0.1 {
+            return "0"
+        } else if thousands < 1.0 {
+            let count = Int((thousands * 1000).rounded())
+            return "\(count)"
+        } else {
+            return String(format: "%.1fK", thousands)
+        }
+    }
 }
 
 #if DEBUG

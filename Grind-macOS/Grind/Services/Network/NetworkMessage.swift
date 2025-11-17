@@ -77,6 +77,7 @@ struct AppStatsData: Codable {
     let mouseMovements: Int
     let mouseClicks: Int
     let lastActive: Date?
+    let colorHex: String?
 }
 
 struct DailyAppBreakdownData: Codable {
@@ -89,6 +90,7 @@ struct DailyAppMetricsData: Codable {
     let duration: Int
     let keystrokes: Int
     let category: String
+    let colorHex: String?
 }
 
 /// Time blocks message (5-minute blocks for today)
@@ -112,6 +114,7 @@ struct TimeBlockData: Codable {
     let keystrokes: Int
     let mouseMovements: Int
     let mouseClicks: Int
+    let colorHex: String?
 }
 
 /// Real-time activity update

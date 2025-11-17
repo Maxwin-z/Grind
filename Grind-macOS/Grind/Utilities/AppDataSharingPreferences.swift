@@ -225,49 +225,98 @@ struct AppSelectionMetadata: Equatable {
 }
 
 struct AppColorGenerator {
+    /// Fixed color palette for apps (8 distinct colors)
+    /// Removed similar colors: 6600FF (similar to 715DF2), 0066FF (similar to 4FACF7),
+    /// F7770F (similar to FCAF3C), FF0066 (similar to C62368)
+    static let appColors = [
+        "001122",  // 0: Dark blue-black
+        "715DF2",  // 1: Purple
+        "4FACF7",  // 2: Light blue
+        "009473",  // 3: Teal green
+        "F7CACA",  // 4: Light pink
+        "FCAF3C",  // 5: Orange
+        "FF6F61",  // 6: Coral red
+        "C62368"   // 7: Magenta
+    ]
+
+    /// Pre-assigned colors for common apps to avoid conflicts
+    /// Maps bundle ID to color index in appColors array
+    /// Priority: ensure the 5 key apps (Claude, Code, Typora, Xcode, iTerm2) have unique colors
+    private static let commonAppColors: [String: Int] = [
+        // PRIORITY: User's 5 key apps - each gets unique color
+        "com.anthropic.claudefordesktop": 0,  // #001122 - Dark blue-black
+        "com.microsoft.VSCode": 1,            // #715DF2 - Purple
+        "abnerworks.Typora": 2,               // #4FACF7 - Light blue
+        "com.apple.dt.Xcode": 3,              // #009473 - Teal green
+        "com.googlecode.iterm2": 4,           // #F7CACA - Light pink
+
+        // Other development tools
+        "com.jetbrains.intellij": 5,          // #FCAF3C - Orange
+        "com.sublimetext.4": 6,               // #FF6F61 - Coral red
+
+        // Terminals
+        "com.apple.Terminal": 7,              // #C62368 - Magenta
+
+        // Browsers
+        "com.apple.Safari": 1,                // #715DF2 - Purple
+        "com.google.Chrome": 5,               // #FCAF3C - Orange
+        "org.mozilla.firefox": 7,             // #C62368 - Magenta
+        "com.brave.Browser": 2,               // #4FACF7 - Light blue
+
+        // Communication
+        "com.tinyspeck.slackmacgap": 3,       // #009473 - Teal green
+        "com.hnc.Discord": 0,                 // #001122 - Dark blue-black
+
+        // Documentation
+        "notion.id": 6,                       // #FF6F61 - Coral red
+        "md.obsidian": 3,                     // #009473 - Teal green
+
+        // Design
+        "com.figma.Desktop": 4,               // #F7CACA - Light pink
+        "com.bohemiancoding.sketch3": 2,      // #4FACF7 - Light blue
+    ]
+
     static func colorHex(forBundleIdentifier bundleId: String, appName: String) -> String {
         let seed = bundleId.isEmpty ? appName : bundleId
-        let hash = stableHash(for: seed)
 
-        let hue = Double(hash % 360) / 360.0
-        let saturation = 0.55 + Double((hash >> 8) % 30) / 100.0
-        let brightness = 0.65 + Double((hash >> 16) % 25) / 100.0
-
-        let rgb = hsbToRGB(hue: hue, saturation: min(max(saturation, 0.45), 0.85), brightness: min(max(brightness, 0.55), 0.95))
-        return String(format: "#%02X%02X%02X", Int(rgb.r * 255), Int(rgb.g * 255), Int(rgb.b * 255))
-    }
-
-    private static func stableHash(for string: String) -> UInt64 {
-        var hash: UInt64 = 1469598103934665603 // FNV offset basis
-        for byte in string.utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1099511628211
-        }
-        return hash
-    }
-
-    private static func hsbToRGB(hue: Double, saturation: Double, brightness: Double) -> (r: Double, g: Double, b: Double) {
-        let c = brightness * saturation
-        let x = c * (1 - abs((hue * 6).truncatingRemainder(dividingBy: 2) - 1))
-        let m = brightness - c
-
-        let (r1, g1, b1): (Double, Double, Double)
-        switch hue * 6 {
-        case 0..<1:
-            (r1, g1, b1) = (c, x, 0)
-        case 1..<2:
-            (r1, g1, b1) = (x, c, 0)
-        case 2..<3:
-            (r1, g1, b1) = (0, c, x)
-        case 3..<4:
-            (r1, g1, b1) = (0, x, c)
-        case 4..<5:
-            (r1, g1, b1) = (x, 0, c)
-        default:
-            (r1, g1, b1) = (c, 0, x)
+        // Check if this is a common app with pre-assigned color
+        if let colorIndex = commonAppColors[seed] {
+            return "#" + appColors[colorIndex]
         }
 
-        return (r1 + m, g1 + m, b1 + m)
+        // Otherwise use hash-based assignment
+        let index = stableColorIndex(for: seed)
+        return "#" + appColors[index]
+    }
+
+    /// Generate a stable color index for a given seed string
+    /// Uses a combination of multiple hash functions to ensure better distribution
+    private static func stableColorIndex(for seed: String) -> Int {
+        // Use multiple bytes from the seed to compute index
+        // This provides better distribution across the color palette
+        var hash: UInt64 = 0
+
+        // FNV-1a hash
+        var fnvHash: UInt64 = 14695981039346656037 // FNV offset basis
+        for byte in seed.utf8 {
+            fnvHash ^= UInt64(byte)
+            fnvHash = fnvHash &* 1099511628211 // FNV prime
+        }
+
+        // DJB2 hash for additional mixing
+        var djb2Hash: UInt64 = 5381
+        for byte in seed.utf8 {
+            djb2Hash = ((djb2Hash << 5) &+ djb2Hash) &+ UInt64(byte)
+        }
+
+        // Combine both hashes for better distribution
+        hash = fnvHash ^ (djb2Hash << 32 | djb2Hash >> 32)
+
+        // Use higher-order bits for better distribution with small modulo
+        let mixedHash = (hash ^ (hash >> 16)) &* 0x85ebca6b
+        let finalHash = (mixedHash ^ (mixedHash >> 13)) &* 0xc2b2ae35
+
+        return Int((finalHash ^ (finalHash >> 16)) % UInt64(appColors.count))
     }
 }
 

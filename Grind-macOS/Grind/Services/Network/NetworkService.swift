@@ -252,7 +252,8 @@ class NetworkService: ObservableObject {
                             appName: stat.appName,
                             duration: stat.totalDuration,
                             keystrokes: stat.keystrokeCount,
-                            category: stat.category
+                            category: stat.category,
+                            colorHex: self.getColorHex(bundleId: nil, appName: stat.appName)
                         )
                     }
                     .sorted { $0.duration > $1.duration }
@@ -288,7 +289,8 @@ class NetworkService: ObservableObject {
                         keystrokes: stats.keystrokeCount,
                         mouseMovements: stats.mouseMovementCount,
                         mouseClicks: stats.mouseClickCount,
-                        lastActive: stats.lastActive
+                        lastActive: stats.lastActive,
+                        colorHex: self.getColorHex(bundleId: nil, appName: stats.appName)
                     )
                 }
 
@@ -328,7 +330,8 @@ class NetworkService: ObservableObject {
                         duration: block.activeDuration,
                         keystrokes: block.keystrokeCount,
                         mouseMovements: 0, // Not available in TimeBlock model
-                        mouseClicks: 0
+                        mouseClicks: 0,
+                        colorHex: self.getColorHex(bundleId: nil, appName: block.appName)
                     )
                 }
 
@@ -523,5 +526,19 @@ class NetworkService: ObservableObject {
 
     private func shouldShareApp(bundleId: String?, appName: String?) -> Bool {
         dataSharingPreferences.isAppSelected(bundleId: bundleId, appName: appName)
+    }
+
+    /// Get color hex for an app (from app_categories or generate)
+    private func getColorHex(bundleId: String?, appName: String) -> String? {
+        // Try to get from app_categories first
+        if let bundleId = bundleId, !bundleId.isEmpty {
+            let repository = AppCategoryRepository()
+            if let category = try? repository.getCategory(forBundleId: bundleId) {
+                return "#" + category.color
+            }
+        }
+
+        // Fallback to generator
+        return AppColorGenerator.colorHex(forBundleIdentifier: bundleId ?? "", appName: appName)
     }
 }
