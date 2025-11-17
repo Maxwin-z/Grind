@@ -21,6 +21,7 @@ class NetworkService: ObservableObject {
     private var listener: NWListener?
     private var connections: [NWConnection] = []
     private let queue = DispatchQueue(label: "me.maxwin.Grind.network")
+    private let dataSharingPreferences = AppDataSharingPreferences.shared
 
     @Published var isRunning = false
     @Published var connectedClients = 0
@@ -193,6 +194,8 @@ class NetworkService: ObservableObject {
     }
 
     private func sendHistoricalStats(to connection: NWConnection) {
+        let selectionSnapshot = dataSharingPreferences.snapshot()
+
         Task {
             do {
                 guard let db = DatabaseManager.shared.getDatabase() else {
@@ -227,10 +230,12 @@ class NetworkService: ObservableObject {
                             .fetchAll(db)
                     }
 
-                    let totalDuration = stats.reduce(0) { $0 + $1.totalDuration }
-                    let totalKeystrokes = stats.reduce(0) { $0 + $1.keystrokeCount }
-                    let totalMouseMovements = stats.reduce(0) { $0 + $1.mouseMovementCount }
-                    let totalMouseClicks = stats.reduce(0) { $0 + $1.mouseClickCount }
+                    let filteredStats = stats.filter { selectionSnapshot.isAppSelected(bundleId: nil, appName: $0.appName) }
+
+                    let totalDuration = filteredStats.reduce(0) { $0 + $1.totalDuration }
+                    let totalKeystrokes = filteredStats.reduce(0) { $0 + $1.keystrokeCount }
+                    let totalMouseMovements = filteredStats.reduce(0) { $0 + $1.mouseMovementCount }
+                    let totalMouseClicks = filteredStats.reduce(0) { $0 + $1.mouseClickCount }
 
                     dailyStats.append(DailyStatsData(
                         date: dateString,
@@ -238,10 +243,10 @@ class NetworkService: ObservableObject {
                         totalKeystrokes: totalKeystrokes,
                         totalMouseMovements: totalMouseMovements,
                         totalMouseClicks: totalMouseClicks,
-                        appCount: stats.count
+                        appCount: filteredStats.count
                     ))
 
-                    let appMetrics = stats.map { stat in
+                    let appMetrics = filteredStats.map { stat in
                         DailyAppMetricsData(
                             appName: stat.appName,
                             duration: stat.totalDuration,
@@ -269,7 +274,11 @@ class NetworkService: ObservableObject {
                         .fetchAll(db)
                 }
 
-                let topApps = topAppsStats.map { stats in
+                let filteredTopAppsStats = topAppsStats.filter {
+                    selectionSnapshot.isAppSelected(bundleId: nil, appName: $0.appName)
+                }
+
+                let topApps = filteredTopAppsStats.map { stats in
                     AppStatsData(
                         bundleIdentifier: "unknown", // Not stored in DailyStats
                         appName: stats.appName,
@@ -300,6 +309,8 @@ class NetworkService: ObservableObject {
     }
 
     private func sendTodayTimeBlocks(to connection: NWConnection) {
+        let selectionSnapshot = dataSharingPreferences.snapshot()
+
         Task {
             do {
                 let repository = TimeBlockRepository()
@@ -309,7 +320,11 @@ class NetworkService: ObservableObject {
                 dateFormatter.dateFormat = "yyyy-MM-dd"
                 let today = dateFormatter.string(from: Date())
 
-                let blockData = blocks.map { block in
+                let filteredBlocks = blocks.filter {
+                    selectionSnapshot.isAppSelected(bundleId: nil, appName: $0.appName)
+                }
+
+                let blockData = filteredBlocks.map { block in
                     TimeBlockData(
                         blockStart: block.blockStart,
                         appName: block.appName,
@@ -321,7 +336,7 @@ class NetworkService: ObservableObject {
                 }
 
                 let message = TimeBlocksMessage(date: today, blocks: blockData)
-                logger.info("📤 Sending time blocks for \(today): \(blocks.count) blocks")
+                logger.info("📤 Sending time blocks for \(today): \(filteredBlocks.count) blocks")
                 let activeBlocks = blockData.filter { $0.duration > 0 }
                 logger.info("   - \(activeBlocks.count) blocks with activity")
                 for (index, block) in activeBlocks.prefix(5).enumerated() {
@@ -389,6 +404,10 @@ class NetworkService: ObservableObject {
         mouseMovements: Int,
         mouseClicks: Int
     ) {
+        guard shouldShareApp(bundleId: activeApp.bundleId, appName: activeApp.name) else {
+            return
+        }
+
         // Extract project name from window title
         let projectName = AppMonitor.shared.extractProjectName(from: activeApp.windowTitle)
 
@@ -412,6 +431,10 @@ class NetworkService: ObservableObject {
 
     /// Broadcast keystroke event
     func broadcastKeystroke(key: String, keyCode: UInt16, modifiers: [String], appBundleId: String) {
+        guard shouldShareApp(bundleId: appBundleId, appName: nil) else {
+            return
+        }
+
         let message = KeystrokeMessage(
             timestamp: Date(),
             key: key,
@@ -431,6 +454,10 @@ class NetworkService: ObservableObject {
         button: Int? = nil,
         appBundleId: String
     ) {
+        guard shouldShareApp(bundleId: appBundleId, appName: nil) else {
+            return
+        }
+
         let message = MouseEventMessage(
             timestamp: Date(),
             eventType: eventType,
@@ -445,6 +472,10 @@ class NetworkService: ObservableObject {
 
     /// Broadcast iTerm2 sessions
     func broadcastITerm2Sessions(_ sessions: [ITerm2SessionData]) {
+        guard shouldShareApp(bundleId: "com.googlecode.iterm2", appName: "iTerm2") else {
+            return
+        }
+
         let message = ITerm2SessionsMessage(
             timestamp: Date(),
             sessions: sessions
@@ -455,14 +486,18 @@ class NetworkService: ObservableObject {
 
     /// Broadcast heartbeat
     func broadcastHeartbeat(activeApp: AppInfo?, isActive: Bool, keystrokesLastMinute: Int, mouseEventsLastMinute: Int) {
-        let activeAppData: ActiveAppData? = activeApp.map {
-            let projectName = AppMonitor.shared.extractProjectName(from: $0.windowTitle)
-            return ActiveAppData(
-                bundleIdentifier: $0.bundleId,
-                appName: $0.name,
-                windowTitle: $0.windowTitle,
+        let activeAppData: ActiveAppData?
+        if let activeApp,
+           shouldShareApp(bundleId: activeApp.bundleId, appName: activeApp.name) {
+            let projectName = AppMonitor.shared.extractProjectName(from: activeApp.windowTitle)
+            activeAppData = ActiveAppData(
+                bundleIdentifier: activeApp.bundleId,
+                appName: activeApp.name,
+                windowTitle: activeApp.windowTitle,
                 projectName: projectName
             )
+        } else {
+            activeAppData = nil
         }
 
         let message = HeartbeatMessage(
@@ -474,5 +509,9 @@ class NetworkService: ObservableObject {
         )
 
         sendMessage(message)
+    }
+
+    private func shouldShareApp(bundleId: String?, appName: String?) -> Bool {
+        dataSharingPreferences.isAppSelected(bundleId: bundleId, appName: appName)
     }
 }

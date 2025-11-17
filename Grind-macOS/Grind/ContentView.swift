@@ -12,6 +12,7 @@ import os.log
 
 struct ContentView: View {
     @StateObject private var appService = AppService()
+    @StateObject private var dataSharingPreferences = AppDataSharingPreferences.shared
     @State private var searchText = ""
     @State private var activeApp: AppInfo?
     @State private var appActivityStats: [AppActivityStats] = []
@@ -130,44 +131,57 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List {
-                        if !runningApps.isEmpty {
-                            Section {
-                                ForEach(runningApps) { app in
-                                    AppRowView(app: app)
-                                        .listRowBackground(Color.clear)
-                                        .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
+                    VStack(spacing: 8) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.square")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+                            Text("Check the apps whose activity data should be sent to Grind clients.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+
+                        List {
+                            if !runningApps.isEmpty {
+                                Section {
+                                    ForEach(runningApps) { app in
+                                        AppRowView(app: app, dataSharingPreferences: dataSharingPreferences)
+                                            .listRowBackground(Color.clear)
+                                            .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
+                                    }
+                                } header: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "circle.fill")
+                                            .foregroundColor(.green)
+                                            .font(.system(size: 6))
+                                        Text("Running Apps (\(runningApps.count))")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                    }
+                                    .padding(.leading, 12)
                                 }
-                            } header: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.system(size: 6))
-                                    Text("Running Apps (\(runningApps.count))")
+                            }
+
+                            if !otherApps.isEmpty {
+                                Section {
+                                    ForEach(otherApps) { app in
+                                        AppRowView(app: app, dataSharingPreferences: dataSharingPreferences)
+                                            .listRowBackground(Color.clear)
+                                            .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
+                                    }
+                                } header: {
+                                    Text("All Apps (\(otherApps.count))")
                                         .font(.caption)
                                         .fontWeight(.medium)
+                                        .padding(.leading, 12)
                                 }
-                                .padding(.leading, 12)
                             }
                         }
-
-                        if !otherApps.isEmpty {
-                            Section {
-                                ForEach(otherApps) { app in
-                                    AppRowView(app: app)
-                                        .listRowBackground(Color.clear)
-                                        .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
-                                }
-                            } header: {
-                                Text("All Apps (\(otherApps.count))")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .padding(.leading, 12)
-                            }
-                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("Applications (\(filteredApps.count))")
@@ -249,60 +263,77 @@ struct ContentView: View {
 
 struct AppRowView: View {
     let app: MacApp
+    @ObservedObject var dataSharingPreferences: AppDataSharingPreferences
+
+    private var selectionBinding: Binding<Bool> {
+        Binding(
+            get: { dataSharingPreferences.isAppSelected(bundleId: app.bundleIdentifier, appName: app.name) },
+            set: { isSelected in
+                dataSharingPreferences.setAppSelected(
+                    bundleId: app.bundleIdentifier,
+                    appName: app.name,
+                    isSelected: isSelected
+                )
+            }
+        )
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
-            // App icon with running indicator
-            ZStack(alignment: .bottomTrailing) {
-                if let icon = app.icon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 20, height: 20)
-                } else {
-                    Image(systemName: "app")
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                        .frame(width: 20, height: 20)
-                }
-
-                if app.isRunning {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 6, height: 6)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white, lineWidth: 1)
-                        )
-                        .offset(x: 2, y: 2)
-                }
-            }
-
-            // App info
-            VStack(alignment: .leading, spacing: 1) {
-                Text(app.name)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-
-                HStack(spacing: 3) {
-                    if let version = app.version {
-                        Text("v\(version)")
-                            .font(.system(size: 10))
+        Toggle(isOn: selectionBinding) {
+            HStack(spacing: 8) {
+                // App icon with running indicator
+                ZStack(alignment: .bottomTrailing) {
+                    if let icon = app.icon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 20, height: 20)
+                    } else {
+                        Image(systemName: "app")
+                            .font(.system(size: 16))
                             .foregroundColor(.secondary)
-                        Text("•")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                            .frame(width: 20, height: 20)
                     }
-                    Text(app.bundleIdentifier)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-            }
 
-            Spacer()
+                    if app.isRunning {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 6, height: 6)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 1)
+                            )
+                            .offset(x: 2, y: 2)
+                    }
+                }
+
+                // App info
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(app.name)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+
+                    HStack(spacing: 3) {
+                        if let version = app.version {
+                            Text("v\(version)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                            Text("•")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        Text(app.bundleIdentifier)
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(.vertical, 2)
         }
-        .padding(.vertical, 2)
+        .toggleStyle(.checkbox)
     }
 }
 

@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import Combine
 
 /// Main activity monitoring coordinator
 /// Runs the 2-second polling loop per PRD FR-001
