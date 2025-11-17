@@ -142,6 +142,20 @@ struct ContentView: View {
                         }
                         .padding(.horizontal, 12)
 
+                        HStack(spacing: 10) {
+                            Button(action: selectAllFilteredApps) {
+                                Label("Select All", systemImage: "checkmark.circle")
+                                    .font(.caption)
+                            }
+                            Button(action: deselectAllFilteredApps) {
+                                Label("Deselect All", systemImage: "xmark.circle")
+                                    .font(.caption)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .padding(.horizontal, 12)
+
                         List {
                             if !runningApps.isEmpty {
                                 Section {
@@ -258,6 +272,14 @@ struct ContentView: View {
         } catch {
             print("Error fetching activity stats: \(error)")
         }
+    }
+
+    private func selectAllFilteredApps() {
+        dataSharingPreferences.setApps(filteredApps, isSelected: true)
+    }
+
+    private func deselectAllFilteredApps() {
+        dataSharingPreferences.setApps(filteredApps, isSelected: false)
     }
 }
 

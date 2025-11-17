@@ -67,6 +67,13 @@ final class AppDataSharingPreferences: ObservableObject {
         setAppSelected(bundleId: app.bundleIdentifier, appName: app.name, isSelected: !currentlySelected)
     }
 
+    /// Update selection state for a batch of apps.
+    func setApps(_ apps: [MacApp], isSelected: Bool) {
+        apps.forEach { app in
+            setAppSelected(bundleId: app.bundleIdentifier, appName: app.name, isSelected: isSelected)
+        }
+    }
+
     /// Snapshot current selection state for use off the main actor.
     func snapshot() -> AppDataSharingSnapshot {
         AppDataSharingSnapshot(
