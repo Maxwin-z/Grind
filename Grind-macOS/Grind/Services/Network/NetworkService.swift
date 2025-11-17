@@ -22,12 +22,29 @@ class NetworkService: ObservableObject {
     private var connections: [NWConnection] = []
     private let queue = DispatchQueue(label: "me.maxwin.Grind.network")
     private let dataSharingPreferences = AppDataSharingPreferences.shared
+    private var selectionObserver: NSObjectProtocol?
 
     @Published var isRunning = false
     @Published var connectedClients = 0
     @Published var serverPort: UInt16 = 9527
 
-    private init() {}
+    private init() {
+        selectionObserver = NotificationCenter.default.addObserver(
+            forName: .appDataSharingSelectionChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.sendSelectedAppsList()
+            self?.sendHistoricalStatsToAllConnections()
+            self?.sendTodayTimeBlocksToAllConnections()
+        }
+    }
+
+    deinit {
+        if let observer = selectionObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
 
     // MARK: - Server Lifecycle
 
@@ -151,6 +168,9 @@ class NetworkService: ObservableObject {
 
         // Send today's time blocks
         sendTodayTimeBlocks(to: connection)
+
+        // Send selected apps list
+        sendSelectedAppsList(to: connection)
     }
 
     private func handleConnectionStateChange(_ connection: NWConnection, state: NWConnection.State) {
@@ -350,6 +370,29 @@ class NetworkService: ObservableObject {
             } catch {
                 logger.error("Failed to fetch today's time blocks: \(error.localizedDescription)")
             }
+        }
+    }
+
+    private func sendSelectedAppsList(to connection: NWConnection? = nil) {
+        let selectedApps = dataSharingPreferences.selectedAppsList()
+        let appData = selectedApps.map {
+            SelectedAppData(bundleIdentifier: $0.bundleIdentifier, appName: $0.appName)
+        }
+
+        let message = SelectedAppsMessage(apps: appData)
+        logger.info("📤 Sending selected apps list (\(appData.count) apps)")
+        sendMessage(message, to: connection)
+    }
+
+    private func sendHistoricalStatsToAllConnections() {
+        connections.forEach { connection in
+            sendHistoricalStats(to: connection)
+        }
+    }
+
+    private func sendTodayTimeBlocksToAllConnections() {
+        connections.forEach { connection in
+            sendTodayTimeBlocks(to: connection)
         }
     }
 

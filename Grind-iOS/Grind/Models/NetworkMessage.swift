@@ -18,6 +18,7 @@ enum NetworkMessageType: String, Codable {
     case keystroke
     case mouseEvent
     case iterm2Sessions
+    case selectedApps
     case error
 }
 
@@ -60,6 +61,9 @@ struct NetworkMessage: Codable {
         case .iterm2Sessions:
             let data = try ITerm2SessionsData(from: decoder)
             payload = .iterm2Sessions(data)
+        case .selectedApps:
+            let data = try SelectedAppsData(from: decoder)
+            payload = .selectedApps(data)
         case .error:
             let data = try ErrorData(from: decoder)
             payload = .error(data)
@@ -82,6 +86,7 @@ enum PayloadData: Codable {
     case keystroke(KeystrokeData)
     case mouseEvent(MouseEventData)
     case iterm2Sessions(ITerm2SessionsData)
+    case selectedApps(SelectedAppsData)
     case error(ErrorData)
 
     enum CodingKeys: String, CodingKey {
@@ -108,6 +113,8 @@ enum PayloadData: Codable {
             self = .mouseEvent(mouse)
         } else if let iterm2 = try? container.decode(ITerm2SessionsData.self) {
             self = .iterm2Sessions(iterm2)
+        } else if let selectedApps = try? container.decode(SelectedAppsData.self) {
+            self = .selectedApps(selectedApps)
         } else if let error = try? container.decode(ErrorData.self) {
             self = .error(error)
         } else {
@@ -134,6 +141,8 @@ enum PayloadData: Codable {
         case .mouseEvent(let data):
             try container.encode(data)
         case .iterm2Sessions(let data):
+            try container.encode(data)
+        case .selectedApps(let data):
             try container.encode(data)
         case .error(let data):
             try container.encode(data)
@@ -203,6 +212,16 @@ struct TimeBlockData: Codable, Identifiable {
     let keystrokes: Int
     let mouseMovements: Int
     let mouseClicks: Int
+}
+
+struct SelectedAppsData: Codable {
+    let apps: [SelectedAppData]
+}
+
+struct SelectedAppData: Codable, Identifiable {
+    var id: String { bundleIdentifier }
+    let bundleIdentifier: String
+    let appName: String
 }
 
 struct RealtimeActivityData: Codable {

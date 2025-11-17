@@ -57,6 +57,12 @@ struct ContentView: View {
         }
     }
 
+    var filteredAppActivityStats: [AppActivityStats] {
+        appActivityStats.filter { stats in
+            dataSharingPreferences.isAppSelected(bundleId: stats.bundleId, appName: stats.appName)
+        }
+    }
+
     var runningApps: [MacApp] {
         filteredApps.filter { $0.isRunning }
     }
@@ -204,10 +210,14 @@ struct ContentView: View {
                 await appService.fetchApplications()
                 updateActiveApp()
                 updateActivityStats()
+                dataSharingPreferences.updateKnownApps(appService.applications)
             }
             .onReceive(timer) { _ in
                 updateActiveApp()
                 updateActivityStats()
+            }
+            .onReceive(appService.$applications) { apps in
+                dataSharingPreferences.updateKnownApps(apps)
             }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 refreshPermissionStatus()
@@ -228,7 +238,7 @@ struct ContentView: View {
                 if app.bundleId.lowercased().contains("iterm") {
                     ITerm2DetailView(app: app)
                 } else {
-                    ActiveAppDetailView(app: app, allAppStats: appActivityStats, lastKeyPressed: lastKeyPressed)
+                    ActiveAppDetailView(app: app, allAppStats: filteredAppActivityStats, lastKeyPressed: lastKeyPressed)
                 }
             } else {
                 VStack(spacing: 8) {

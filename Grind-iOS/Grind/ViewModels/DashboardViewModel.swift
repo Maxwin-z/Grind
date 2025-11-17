@@ -30,6 +30,9 @@ class DashboardViewModel: ObservableObject {
 
     private let networkClient = NetworkClient.shared
     private var cancellables = Set<AnyCancellable>()
+    private var latestHistoricalData: HistoricalStatsData?
+    private var selectedAppNames: Set<String> = []
+    private var didReceiveSelectionSnapshot = false
 
     init() {
         setupBindings()
@@ -52,9 +55,19 @@ class DashboardViewModel: ObservableObject {
 
         // Process historical stats
         networkClient.$historicalStats
-            .compactMap { $0 }
             .sink { [weak self] historicalData in
-                self?.processHistoricalData(historicalData)
+                guard let self = self, let historicalData = historicalData else { return }
+                self.latestHistoricalData = historicalData
+                self.recalculateHistoricalCharts()
+            }
+            .store(in: &cancellables)
+
+        networkClient.$selectedApps
+            .sink { [weak self] apps in
+                guard let self = self else { return }
+                self.selectedAppNames = Set(apps.map { $0.appName })
+                self.didReceiveSelectionSnapshot = true
+                self.recalculateHistoricalCharts()
             }
             .store(in: &cancellables)
 
@@ -82,7 +95,13 @@ class DashboardViewModel: ObservableObject {
 
     // MARK: - Data Processing
 
-    private func processHistoricalData(_ data: HistoricalStatsData) {
+    private func recalculateHistoricalCharts() {
+        guard let data = latestHistoricalData else { return }
+        let filterNames = didReceiveSelectionSnapshot ? selectedAppNames : nil
+        processHistoricalData(data, filterNames: filterNames)
+    }
+
+    private func processHistoricalData(_ data: HistoricalStatsData, filterNames: Set<String>?) {
         print("📊 Processing historical data...")
         print("   - Received \(data.dailyStats.count) daily stats")
         print("   - Received \(data.topApps.count) top apps")
@@ -100,13 +119,17 @@ class DashboardViewModel: ObservableObject {
         if let breakdown = data.dailyAppBreakdown {
             for dayBreakdown in breakdown {
                 let sortedActivityApps = dayBreakdown.apps.sorted { $0.duration > $1.duration }
-                let activityApps = sortedActivityApps.map { metric in
-                    DailyActivityByApp(appName: metric.appName, duration: metric.duration)
-                }
+                let activityApps = sortedActivityApps
+                    .filter { shouldIncludeApp(named: $0.appName, filterNames: filterNames) }
+                    .map { metric in
+                        DailyActivityByApp(appName: metric.appName, duration: metric.duration)
+                    }
                 let sortedKeystrokeApps = dayBreakdown.apps.sorted { $0.keystrokes > $1.keystrokes }
-                let keystrokeApps = sortedKeystrokeApps.map { metric in
-                    DailyKeystrokeByApp(appName: metric.appName, keystrokes: metric.keystrokes)
-                }
+                let keystrokeApps = sortedKeystrokeApps
+                    .filter { shouldIncludeApp(named: $0.appName, filterNames: filterNames) }
+                    .map { metric in
+                        DailyKeystrokeByApp(appName: metric.appName, keystrokes: metric.keystrokes)
+                    }
 
                 if !activityApps.isEmpty {
                     perDayActivity[dayBreakdown.date] = activityApps
@@ -121,15 +144,17 @@ class DashboardViewModel: ObservableObject {
         for dayStats in recentStats {
             let date = dayStats.date
             print("   - Day \(date): \(dayStats.totalSeconds)s, \(dayStats.totalKeystrokes) keys")
-            if perDayActivity[date]?.isEmpty ?? true {
-                perDayActivity[date] = [
-                    DailyActivityByApp(appName: "Total", duration: dayStats.totalSeconds)
-                ]
-            }
-            if perDayKeystrokes[date]?.isEmpty ?? true {
-                perDayKeystrokes[date] = [
-                    DailyKeystrokeByApp(appName: "Total", keystrokes: dayStats.totalKeystrokes)
-                ]
+            if filterNames == nil {
+                if perDayActivity[date]?.isEmpty ?? true {
+                    perDayActivity[date] = [
+                        DailyActivityByApp(appName: "Total", duration: dayStats.totalSeconds)
+                    ]
+                }
+                if perDayKeystrokes[date]?.isEmpty ?? true {
+                    perDayKeystrokes[date] = [
+                        DailyKeystrokeByApp(appName: "Total", keystrokes: dayStats.totalKeystrokes)
+                    ]
+                }
             }
         }
 
@@ -191,6 +216,13 @@ class DashboardViewModel: ObservableObject {
         // Reconnect to fetch latest data
         networkClient.disconnect()
         networkClient.startServiceDiscovery()
+        didReceiveSelectionSnapshot = false
+        selectedAppNames = []
+    }
+
+    private func shouldIncludeApp(named appName: String, filterNames: Set<String>?) -> Bool {
+        guard let filterNames = filterNames else { return true }
+        return filterNames.contains { $0.caseInsensitiveCompare(appName) == .orderedSame }
     }
 }
 

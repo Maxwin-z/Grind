@@ -23,6 +23,7 @@ enum MessageType: String, Codable {
     case mouseEvent
     case iterm2Sessions
     case heartbeat
+    case selectedApps
     case error
 }
 
@@ -187,6 +188,23 @@ struct HeartbeatMessage: NetworkMessage {
     let isActive: Bool // Is user active (not idle)
     let keystrokesLastMinute: Int
     let mouseEventsLastMinute: Int
+}
+
+/// Selected apps state message
+struct SelectedAppsMessage: NetworkMessage {
+    let type: MessageType = .selectedApps
+    let timestamp: Date
+    let apps: [SelectedAppData]
+
+    init(apps: [SelectedAppData]) {
+        self.timestamp = Date()
+        self.apps = apps
+    }
+}
+
+struct SelectedAppData: Codable {
+    let bundleIdentifier: String
+    let appName: String
 }
 
 /// Error message

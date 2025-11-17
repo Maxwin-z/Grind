@@ -21,6 +21,7 @@ class NetworkClient: NSObject, ObservableObject {
     @Published var timeBlocks: TimeBlocksData?
     @Published var realtimeActivity: RealtimeActivityData?
     @Published var currentKPM: Int = 0  // Keys per minute
+    @Published var selectedApps: [SelectedAppData] = []
 
     // MARK: - Private Properties
 
@@ -268,6 +269,10 @@ class NetworkClient: NSObject, ObservableObject {
 
         case .iterm2Sessions(let data):
             print("💻 iTerm2 sessions: \(data.sessions.count)")
+
+        case .selectedApps(let data):
+            print("✅ Selected apps update: \(data.apps.count) apps")
+            selectedApps = data.apps
 
         case .error(let data):
             print("❌ Server error: \(data.message)")
