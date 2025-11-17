@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import GRDB
 
 /// Service for aggregating heartbeats into 5-minute time blocks
 /// Runs in background to maintain performance
@@ -80,9 +81,32 @@ class TimeBlockAggregator {
         let blocksToSave = Array(currentBlockCache.values)
 
         DispatchQueue.global(qos: .background).async { [weak self] in
+            guard let self = self else { return }
             do {
-                for block in blocksToSave {
-                    try self?.timeBlockRepo.save(block)
+                guard let db = DatabaseManager.shared.getDatabase() else {
+                    print("❌ Database not initialized")
+                    return
+                }
+
+                // Properly accumulate durations by merging with existing blocks
+                try db.write { db in
+                    for block in blocksToSave {
+                        // Try to fetch existing block
+                        if var existing = try TimeBlock
+                            .filter(TimeBlock.Columns.blockStart == block.blockStart && TimeBlock.Columns.appName == block.appName)
+                            .fetchOne(db) {
+                            // Accumulate durations
+                            existing.activeDuration += block.activeDuration
+                            existing.typingDuration += block.typingDuration
+                            existing.keystrokeCount += block.keystrokeCount
+                            existing.mouseMovementCount += block.mouseMovementCount
+                            existing.mouseClickCount += block.mouseClickCount
+                            try existing.update(db)
+                        } else {
+                            // Create new block
+                            try block.insert(db)
+                        }
+                    }
                 }
                 print("💾 Flushed \(blocksToSave.count) time blocks to database")
             } catch {
