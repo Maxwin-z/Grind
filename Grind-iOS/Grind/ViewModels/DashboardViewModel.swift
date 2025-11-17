@@ -69,6 +69,7 @@ class DashboardViewModel: ObservableObject {
                 self.selectedAppNames = Set(apps.map { $0.appName })
                 self.appSelectionMetadata = Dictionary(uniqueKeysWithValues: apps.map { ($0.appName, $0) })
                 self.didReceiveSelectionSnapshot = true
+                self.logAppMetadata(apps)
                 self.recalculateHistoricalCharts()
             }
             .store(in: &cancellables)
@@ -231,6 +232,16 @@ class DashboardViewModel: ObservableObject {
     private func logChartTables() {
         logActivityTable()
         logKeystrokeTable()
+    }
+
+    private func logAppMetadata(_ apps: [SelectedAppData]) {
+        guard !apps.isEmpty else { return }
+        print("# app metadata")
+        print("app, bundleId, accentColorHex, hasIcon")
+        for app in apps.sorted(by: { $0.appName < $1.appName }) {
+            let hasIcon = app.iconPNGData == nil ? "no" : "yes"
+            print("\(app.appName), \(app.bundleIdentifier), \(app.accentColorHex), \(hasIcon)")
+        }
     }
 
     private func logActivityTable() {

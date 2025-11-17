@@ -32,18 +32,21 @@ struct WeeklyActivityChart: View {
     }
 
     private var chartView: some View {
-        Chart(activityEntries) { entry in
-            AreaMark(
-                x: .value("Date", formatDate(entry.date)),
-                y: .value("Duration", entry.hours)
-            )
-            .position(by: .value("App", entry.appName))
-            .foregroundStyle(by: .value("App", entry.appName))
-            .interpolationMethod(.catmullRom)
+        Chart {
+            ForEach(activitySeries) { series in
+                ForEach(series.entries) { entry in
+                    AreaMark(
+                        x: .value("Date", entry.date),
+                        y: .value("Duration", entry.hours)
+                    )
+                    .foregroundStyle(by: .value("App", series.appName))
+                    .interpolationMethod(.catmullRom)
+                }
+            }
         }
         .chartForegroundStyleScale(
             domain: uniqueApps,
-            range: uniqueApps.map { colorForApp($0) }
+            range: uniqueApps.map { styleForApp($0) }
         )
         .chartYAxis {
             AxisMarks(position: .leading) { value in
@@ -60,7 +63,7 @@ struct WeeklyActivityChart: View {
             AxisMarks { value in
                 AxisGridLine()
                 AxisValueLabel {
-                    if let date = value.as(String.self) {
+                    if let date = value.as(Date.self) {
                         Text(formatShortDate(date))
                             .font(.caption)
                     }
@@ -107,39 +110,40 @@ struct WeeklyActivityChart: View {
     private var activityEntries: [ActivityEntry] {
         data.flatMap { dayData in
             dayData.appActivities.map { appActivity in
-                ActivityEntry(date: dayData.date, appName: appActivity.appName, hours: Double(appActivity.duration) / 3600.0)
+                ActivityEntry(
+                    date: dateValue(dayData.date),
+                    appName: appActivity.appName,
+                    hours: Double(appActivity.duration) / 3600.0
+                )
             }
         }
     }
 
+    private var activitySeries: [ActivitySeries] {
+        let grouped = Dictionary(grouping: activityEntries, by: { $0.appName })
+        return grouped.map { appName, entries in
+            ActivitySeries(appName: appName, entries: entries.sorted { $0.date < $1.date })
+        }
+        .sorted { $0.appName < $1.appName }
+    }
+
     private var uniqueApps: [String] {
-        let allApps = data.flatMap { $0.appActivities.map { $0.appName } }
-        return Array(Set(allApps)).sorted()
+        activitySeries.map { $0.appName }
     }
 
-    private func formatDate(_ dateString: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: dateString) else { return dateString }
-
-        formatter.dateFormat = "MMM d"
-        return formatter.string(from: date)
+    private func dateValue(_ dateString: String) -> Date {
+        Self.isoDateFormatter.date(from: dateString) ?? Date()
     }
 
-    private func formatShortDate(_ dateString: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        guard let date = formatter.date(from: dateString) else { return dateString }
-
-        formatter.dateFormat = "E"
-        return formatter.string(from: date)
+    private func formatShortDate(_ date: Date) -> String {
+        Self.weekdayFormatter.string(from: date)
     }
 
     private func colorForApp(_ appName: String) -> Color {
         if let metadata = metadata(for: appName) {
-            return Color(hex: metadata.accentColorHex, fallback: fallbackColor(for: appName))
+            return Color(hex: metadata.accentColorHex, fallback: fallbackColor(for: appName)).boostedForCharts()
         }
-        return fallbackColor(for: appName)
+        return fallbackColor(for: appName).boostedForCharts()
     }
 
     private func metadata(for appName: String) -> SelectedAppData? {
@@ -152,10 +156,25 @@ struct WeeklyActivityChart: View {
     private func fallbackColor(for appName: String) -> Color {
         let hash = abs(appName.hashValue)
         let colors: [Color] = [
-            .blue, .green, .orange, .purple, .pink,
-            .red, .yellow, .teal, .indigo, .cyan
+            Color(red: 0.95, green: 0.35, blue: 0.2),
+            Color(red: 0.95, green: 0.55, blue: 0.15),
+            Color(red: 0.2, green: 0.6, blue: 0.95),
+            Color(red: 0.3, green: 0.75, blue: 0.4),
+            Color(red: 0.7, green: 0.4, blue: 0.9),
+            Color(red: 1.0, green: 0.2, blue: 0.5),
+            Color(red: 0.2, green: 0.85, blue: 0.7),
+            Color(red: 0.98, green: 0.6, blue: 0.2),
+            Color(red: 0.4, green: 0.5, blue: 0.95),
+            Color(red: 0.25, green: 0.9, blue: 0.5)
         ]
         return colors[hash % colors.count]
+    }
+
+    private func styleForApp(_ appName: String) -> LinearGradient {
+        let color = colorForApp(appName)
+        let lighter = color.opacity(0.9)
+        let darker = color.opacity(0.55)
+        return LinearGradient(colors: [lighter, darker], startPoint: .top, endPoint: .bottom)
     }
 
     private var legendEntries: [LegendEntry] {
@@ -198,10 +217,30 @@ struct WeeklyActivityChart: View {
 
     private struct ActivityEntry: Identifiable {
         let id = UUID()
-        let date: String
+        let date: Date
         let appName: String
         let hours: Double
     }
+
+    private struct ActivitySeries: Identifiable {
+        let appName: String
+        let entries: [ActivityEntry]
+        var id: String { appName }
+    }
+
+    private static let isoDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
 }
 
 #if DEBUG

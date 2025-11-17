@@ -32,18 +32,21 @@ struct WeeklyKeystrokeChart: View {
     }
 
     private var chartView: some View {
-        Chart(keystrokeEntries) { entry in
-            AreaMark(
-                x: .value("Date", formatDate(entry.date)),
-                y: .value("Keystrokes", entry.thousands)
-            )
-            .position(by: .value("App", entry.appName))
-            .foregroundStyle(by: .value("App", entry.appName))
-            .interpolationMethod(.catmullRom)
+        Chart {
+            ForEach(keystrokeSeries) { series in
+                ForEach(series.entries) { entry in
+                    AreaMark(
+                        x: .value("Date", entry.date),
+                        y: .value("Keystrokes", entry.thousands)
+                    )
+                    .foregroundStyle(by: .value("App", series.appName))
+                    .interpolationMethod(.catmullRom)
+                }
+            }
         }
         .chartForegroundStyleScale(
             domain: uniqueApps,
-            range: uniqueApps.map { colorForApp($0) }
+            range: uniqueApps.map { styleForApp($0) }
         )
         .chartYAxis {
             AxisMarks(position: .leading) { value in
@@ -60,7 +63,7 @@ struct WeeklyKeystrokeChart: View {
             AxisMarks { value in
                 AxisGridLine()
                 AxisValueLabel {
-                    if let date = value.as(String.self) {
+                    if let date = value.as(Date.self) {
                         Text(formatShortDate(date))
                             .font(.caption)
                     }
@@ -107,39 +110,40 @@ struct WeeklyKeystrokeChart: View {
     private var keystrokeEntries: [KeystrokeEntry] {
         data.flatMap { dayData in
             dayData.appKeystrokes.map { appKeystroke in
-                KeystrokeEntry(date: dayData.date, appName: appKeystroke.appName, thousands: Double(appKeystroke.keystrokes) / 1000.0)
+                KeystrokeEntry(
+                    date: dateValue(dayData.date),
+                    appName: appKeystroke.appName,
+                    thousands: Double(appKeystroke.keystrokes) / 1000.0
+                )
             }
         }
     }
 
+    private var keystrokeSeries: [KeystrokeSeries] {
+        let grouped = Dictionary(grouping: keystrokeEntries, by: { $0.appName })
+        return grouped.map { appName, entries in
+            KeystrokeSeries(appName: appName, entries: entries.sorted { $0.date < $1.date })
+        }
+        .sorted { $0.appName < $1.appName }
+    }
+
     private var uniqueApps: [String] {
-        let allApps = data.flatMap { $0.appKeystrokes.map { $0.appName } }
-        return Array(Set(allApps)).sorted()
+        keystrokeSeries.map { $0.appName }
     }
 
-    private func formatDate(_ dateString: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: dateString) else { return dateString }
-
-        formatter.dateFormat = "MMM d"
-        return formatter.string(from: date)
+    private func dateValue(_ dateString: String) -> Date {
+        Self.isoDateFormatter.date(from: dateString) ?? Date()
     }
 
-    private func formatShortDate(_ dateString: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        guard let date = formatter.date(from: dateString) else { return dateString }
-
-        formatter.dateFormat = "E"
-        return formatter.string(from: date)
+    private func formatShortDate(_ date: Date) -> String {
+        Self.weekdayFormatter.string(from: date)
     }
 
     private func colorForApp(_ appName: String) -> Color {
         if let metadata = metadata(for: appName) {
-            return Color(hex: metadata.accentColorHex, fallback: fallbackColor(for: appName))
+            return Color(hex: metadata.accentColorHex, fallback: fallbackColor(for: appName)).boostedForCharts()
         }
-        return fallbackColor(for: appName)
+        return fallbackColor(for: appName).boostedForCharts()
     }
 
     private func metadata(for appName: String) -> SelectedAppData? {
@@ -152,10 +156,25 @@ struct WeeklyKeystrokeChart: View {
     private func fallbackColor(for appName: String) -> Color {
         let hash = abs(appName.hashValue)
         let colors: [Color] = [
-            .blue, .green, .orange, .purple, .pink,
-            .red, .yellow, .teal, .indigo, .cyan
+            Color(red: 0.95, green: 0.35, blue: 0.2),
+            Color(red: 0.95, green: 0.55, blue: 0.15),
+            Color(red: 0.2, green: 0.6, blue: 0.95),
+            Color(red: 0.3, green: 0.75, blue: 0.4),
+            Color(red: 0.7, green: 0.4, blue: 0.9),
+            Color(red: 1.0, green: 0.2, blue: 0.5),
+            Color(red: 0.2, green: 0.85, blue: 0.7),
+            Color(red: 0.98, green: 0.6, blue: 0.2),
+            Color(red: 0.4, green: 0.5, blue: 0.95),
+            Color(red: 0.25, green: 0.9, blue: 0.5)
         ]
         return colors[hash % colors.count]
+    }
+
+    private func styleForApp(_ appName: String) -> LinearGradient {
+        let color = colorForApp(appName)
+        let lighter = color.opacity(0.9)
+        let darker = color.opacity(0.55)
+        return LinearGradient(colors: [lighter, darker], startPoint: .top, endPoint: .bottom)
     }
 
     private var legendEntries: [LegendEntry] {
@@ -198,10 +217,30 @@ struct WeeklyKeystrokeChart: View {
 
     private struct KeystrokeEntry: Identifiable {
         let id = UUID()
-        let date: String
+        let date: Date
         let appName: String
         let thousands: Double
     }
+
+    private struct KeystrokeSeries: Identifiable {
+        let appName: String
+        let entries: [KeystrokeEntry]
+        var id: String { appName }
+    }
+
+    private static let isoDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
 }
 
 #if DEBUG

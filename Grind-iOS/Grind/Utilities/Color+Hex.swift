@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 extension Color {
     init(hex: String, fallback: Color = .accentColor) {
@@ -28,5 +31,31 @@ extension Color {
             return String(trimmed.dropFirst())
         }
         return trimmed
+    }
+
+    func boostedForCharts() -> Color {
+        #if canImport(UIKit)
+        let uiColor = UIColor(self)
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+
+        guard uiColor.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
+            return self
+        }
+
+        let boostedSaturation = min(1.0, saturation * 1.25 + 0.1)
+        let boostedBrightness = min(1.0, max(brightness, 0.35) * 1.05)
+        let boostedColor = UIColor(
+            hue: hue,
+            saturation: boostedSaturation,
+            brightness: boostedBrightness,
+            alpha: alpha
+        )
+        return Color(uiColor: boostedColor)
+        #else
+        return self
+        #endif
     }
 }
