@@ -200,7 +200,7 @@ struct RealtimeActivityData: Codable {
 }
 
 struct ActiveAppData: Codable {
-    let bundleId: String
+    let bundleIdentifier: String
     let appName: String
     let windowTitle: String?
     let projectName: String?
