@@ -222,6 +222,8 @@ struct SelectedAppData: Codable, Identifiable {
     var id: String { bundleIdentifier }
     let bundleIdentifier: String
     let appName: String
+    let accentColorHex: String
+    let iconPNGData: Data?
 }
 
 struct RealtimeActivityData: Codable {

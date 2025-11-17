@@ -205,6 +205,8 @@ struct SelectedAppsMessage: NetworkMessage {
 struct SelectedAppData: Codable {
     let bundleIdentifier: String
     let appName: String
+    let accentColorHex: String
+    let iconPNGData: Data?
 }
 
 /// Error message

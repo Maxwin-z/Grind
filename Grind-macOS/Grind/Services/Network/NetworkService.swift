@@ -376,7 +376,12 @@ class NetworkService: ObservableObject {
     private func sendSelectedAppsList(to connection: NWConnection? = nil) {
         let selectedApps = dataSharingPreferences.selectedAppsList()
         let appData = selectedApps.map {
-            SelectedAppData(bundleIdentifier: $0.bundleIdentifier, appName: $0.appName)
+            SelectedAppData(
+                bundleIdentifier: $0.bundleIdentifier,
+                appName: $0.appName,
+                accentColorHex: $0.accentColorHex,
+                iconPNGData: $0.iconPNGData
+            )
         }
 
         let message = SelectedAppsMessage(apps: appData)
