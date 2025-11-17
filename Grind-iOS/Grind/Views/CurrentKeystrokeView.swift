@@ -18,8 +18,8 @@ struct CurrentKeystrokeView: View {
                 ModifierKeyView(modifier: modifier)
             }
 
-            // Display the main key
-            if !key.isEmpty {
+            // Display the main key (skip "Special" and unknown keys)
+            if !key.isEmpty && !shouldSkipKey(key) {
                 KeyView(key: key)
             }
         }
@@ -28,44 +28,26 @@ struct CurrentKeystrokeView: View {
         .background(Color(.systemGray6))
         .cornerRadius(8)
     }
+
+    private func shouldSkipKey(_ key: String) -> Bool {
+        // Skip "Special" key and other non-displayable keys
+        return key == "Special" || key.hasPrefix("Key ")
+    }
 }
 
 struct ModifierKeyView: View {
     let modifier: String
 
     var body: some View {
-        HStack(spacing: 4) {
-            if let icon = modifierIcon {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-            Text(modifierSymbol)
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(.primary)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color(.systemBackground))
-        .cornerRadius(6)
-        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-    }
-
-    private var modifierIcon: String? {
-        switch modifier {
-        case "Command":
-            return "command"
-        case "Shift":
-            return "shift"
-        case "Option":
-            return "option"
-        case "Control":
-            return "control"
-        case "Fn":
-            return nil  // No SF Symbol for Fn
-        default:
-            return nil
-        }
+        // Only show symbol, no icon (to avoid duplication)
+        Text(modifierSymbol)
+            .font(.system(size: 18, weight: .semibold, design: .rounded))
+            .foregroundColor(.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color(.systemBackground))
+            .cornerRadius(6)
+            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
     }
 
     private var modifierSymbol: String {
@@ -92,13 +74,16 @@ struct KeyView: View {
     var body: some View {
         HStack(spacing: 4) {
             if let icon = specialKeyIcon {
+                // For special keys, only show icon
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(.primary)
+            } else {
+                // For regular keys, show text
+                Text(displayKey)
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundColor(.primary)
             }
-            Text(displayKey)
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(.primary)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

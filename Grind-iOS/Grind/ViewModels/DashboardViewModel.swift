@@ -262,24 +262,35 @@ class DashboardViewModel: ObservableObject {
 
     private func startKPMTimer() {
         // Update KPM every second to keep it fresh
-        kpmUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.updateKPM()
+        // Run on main thread to avoid issues
+        DispatchQueue.main.async { [weak self] in
+            self?.kpmUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                self?.updateKPM()
+            }
+            // Add to common run loop mode to ensure it runs during UI updates
+            if let timer = self?.kpmUpdateTimer {
+                RunLoop.main.add(timer, forMode: .common)
+            }
         }
     }
 
     private func updateKPM() {
-        let now = Date()
-        let cutoffTime = now.addingTimeInterval(-kpmCalculationWindow)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
 
-        // Remove old timestamps
-        keystrokeTimestamps.removeAll { $0 < cutoffTime }
+            let now = Date()
+            let cutoffTime = now.addingTimeInterval(-self.kpmCalculationWindow)
 
-        // Calculate KPM based on keystrokes in the last minute
-        currentKPM = keystrokeTimestamps.count
+            // Remove old timestamps
+            self.keystrokeTimestamps.removeAll { $0 < cutoffTime }
 
-        // If no recent keystrokes, set to 0
-        if keystrokeTimestamps.isEmpty {
-            currentKPM = 0
+            // Calculate KPM based on keystrokes in the last minute
+            self.currentKPM = self.keystrokeTimestamps.count
+
+            // If no recent keystrokes, set to 0
+            if self.keystrokeTimestamps.isEmpty {
+                self.currentKPM = 0
+            }
         }
     }
 
