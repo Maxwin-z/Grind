@@ -8,37 +8,41 @@
 import SwiftUI
 
 struct TypingSpeedCompactView: View {
-    static let preferredHeight: CGFloat = 220
-
     let kpm: Int
     private let maxKPM = 300
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 0)
-            ZStack {
-                Circle()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 18)
-                    .frame(width: 180, height: 180)
+        GeometryReader { geometry in
+            let size = min(geometry.size.width, geometry.size.height)
+            let circleDiameter = size * 0.85  // 85% of container size for padding
+            let lineWidth = size * 0.09  // ~9% of size for stroke width
+            let fontSize = size * 0.26  // ~26% of size for font
 
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(
-                        gradientForSpeed,
-                        style: StrokeStyle(lineWidth: 18, lineCap: .round)
-                    )
-                    .frame(width: 180, height: 180)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.5), value: kpm)
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                ZStack {
+                    Circle()
+                        .stroke(Color.gray.opacity(0.2), lineWidth: lineWidth)
+                        .frame(width: circleDiameter, height: circleDiameter)
 
-                Text("\(kpm)")
-                    .font(.system(size: 52, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(
+                            gradientForSpeed,
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                        )
+                        .frame(width: circleDiameter, height: circleDiameter)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut(duration: 0.5), value: kpm)
+
+                    Text("\(kpm)")
+                        .font(.system(size: fontSize, weight: .bold, design: .rounded))
+                        .foregroundColor(.primary)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)

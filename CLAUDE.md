@@ -272,8 +272,9 @@ xcodebuild test -project Grind.xcodeproj -scheme Grind
 
 **Location**: `Grind-iOS/`
 **Platform**: iOS
-**Status**: Basic template, minimal implementation
-**Future**: Mobile companion app to view macOS-tracked stats
+**Bundle ID**: TBD
+**UI Framework**: SwiftUI
+**Status**: Dashboard implementation complete, network sync operational
 
 ### Build Commands (iOS)
 
@@ -287,7 +288,109 @@ xcodebuild -project Grind.xcodeproj -scheme Grind -sdk iphonesimulator -configur
 xcodebuild -project Grind.xcodeproj -scheme Grind -sdk iphoneos -configuration Release build
 ```
 
-**Note**: iOS app currently contains only default SwiftUI template. Future implementation will sync with macOS app data.
+### iOS Architecture
+
+#### Network Client (Bonjour Service Discovery)
+
+**NetworkClient.shared** (`Services/NetworkClient.swift`)
+- Discovers macOS server via Bonjour (`_grind._tcp` service)
+- Connects to macOS server on port 9527
+- Receives real-time activity updates via JSON protocol
+- Publishes data to SwiftUI views via Combine `@Published` properties
+
+**Connection Flow**:
+1. App starts → `startServiceDiscovery()`
+2. Discovers Grind server via NWBrowser
+3. Establishes TCP connection automatically
+4. Receives historical stats (30 days) on connect
+5. Receives real-time updates every 2 seconds
+
+**Message Types** (see `NetworkMessage.swift`):
+- `historicalStats`: Last 30 days of daily statistics
+- `timeBlocks`: 5-minute block data for timeline visualization
+- `realtimeActivity`: Current app, idle time, KPM updates (every 2s)
+- `keystroke`: Individual keystroke events
+- `dailyStatsUpdate`: Updated daily statistics
+- `selectedApps`: List of apps selected in macOS app
+
+#### Dashboard Views (MVVM Pattern)
+
+**DashboardViewModel** (`ViewModels/DashboardViewModel.swift`)
+- Central view model coordinating all dashboard data
+- Subscribes to NetworkClient published properties
+- Aggregates data for various chart views
+- Manages connection state
+
+**Key Views** (`Views/`):
+- `DashboardView.swift`: Main container with all visualizations
+- `WeeklyActivityChart.swift`: Stacked bar chart of 7-day activity by app
+- `WeeklyKeystrokeChart.swift`: Stacked bar chart of 7-day keystroke counts
+- `TodayTimelineView.swift`: 24-hour activity timeline (5-min blocks)
+- `CurrentKeystrokeView.swift`: Real-time KPM gauge and current app
+- `KeyboardVisualizerView.swift`: Visual keyboard heatmap
+- `TypingSpeedGauge.swift`: Circular gauge for typing speed
+
+#### Data Models
+
+**KeyboardLayout** (`Models/KeyboardLayout.swift`)
+- Defines keyboard key positions for visualization
+- Maps key codes to visual representation
+
+**NetworkMessage** (`Models/NetworkMessage.swift`)
+- Codable structs for all message types
+- Includes: `HistoricalStatsData`, `TimeBlocksData`, `RealtimeActivityData`, etc.
+
+### iOS Project Structure
+
+```
+Grind-iOS/
+├── Grind.xcodeproj/
+└── Grind/
+    ├── GrindApp.swift              # App entry point
+    ├── ContentView.swift           # Delegates to DashboardView
+    ├── Models/
+    │   ├── KeyboardLayout.swift    # Keyboard visualization model
+    │   └── NetworkMessage.swift    # Network protocol models
+    ├── Services/
+    │   └── NetworkClient.swift     # Bonjour discovery + TCP client
+    ├── ViewModels/
+    │   └── DashboardViewModel.swift # MVVM coordinator
+    └── Views/
+        ├── DashboardView.swift
+        ├── WeeklyActivityChart.swift
+        ├── WeeklyKeystrokeChart.swift
+        ├── TodayTimelineView.swift
+        ├── CurrentKeystrokeView.swift
+        ├── KeyboardVisualizerView.swift
+        ├── TypingSpeedGauge.swift
+        ├── TypingSpeedCompactView.swift
+        ├── ChartSelectionSummaryCard.swift
+        └── AppLegendListView.swift
+```
+
+### iOS Development Workflow
+
+1. **Start macOS app first**: iOS app requires running macOS server for data
+2. **Ensure same network**: Both devices must be on same WiFi for Bonjour discovery
+3. **Check permissions**: iOS needs Local Network permission for Bonjour
+4. **Aggregate data**: Run `TimeBlockAggregator.shared.aggregateToDailyStats(for:)` on macOS to generate historical data
+5. **Monitor connection**: Check green indicator in DashboardView for connection status
+
+### iOS Permissions Required
+
+**Local Network** (Required):
+- Bonjour service discovery
+- TCP connection to macOS server
+- Add to Info.plist:
+  ```xml
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Grind needs local network access to connect to your Mac</string>
+
+  <key>NSBonjourServices</key>
+  <array>
+      <string>_grind._tcp</string>
+  </array>
+  ```
 
 ## Dependencies
 
@@ -385,18 +488,142 @@ Events = keystrokes + mouse movements + clicks
 5. Add database migrations if schema changes
 6. Update CLAUDE.md if adding build commands
 
-**For iOS features** (future):
+**For iOS features**:
 1. Navigate to `Grind-iOS/`
-2. Currently minimal - coordinate with macOS data model
-3. Plan for future sync mechanism
+2. Follow MVVM pattern (ViewModels coordinate NetworkClient data)
+3. Add message handlers to `NetworkClient` for new data types
+4. Update `DashboardViewModel` to process and expose data to views
+5. Create SwiftUI views that observe `@Published` properties
+6. Coordinate with macOS `NetworkService` for protocol changes
 
 ## Current Development Phase
 
 **macOS**: Phase 1 MVP
 - ✅ Backend complete (tracking, database, aggregation)
+- ✅ Network server (port 9527, Bonjour broadcasting)
 - 🔄 UI in progress (ContentView shows basic app list)
-- Next: Menu bar interface, dashboard views
+- Next: Menu bar interface, enhanced desktop dashboard
 
-**iOS**: Not started
-- Basic Xcode template only
-- Future: Mobile companion for viewing stats
+**iOS**: Dashboard MVP Complete
+- ✅ Bonjour service discovery and auto-connect
+- ✅ Real-time data sync via TCP (JSON protocol)
+- ✅ Dashboard with multiple visualizations:
+  - Weekly activity/keystroke charts
+  - 24-hour timeline
+  - Real-time KPM gauge
+  - Keyboard heatmap
+- Next: App filtering, custom date ranges, notifications
+
+## Network Communication
+
+**Protocol**: JSON over TCP with 4-byte length prefix
+**Port**: 9527
+**Discovery**: Bonjour service `_grind._tcp`
+
+**Message Flow**:
+1. iOS connects → macOS sends `welcome` + `historicalStats` (30 days)
+2. macOS broadcasts `realtimeActivity` every 2 seconds
+3. macOS sends `keystroke` events as they occur
+4. macOS sends `dailyStatsUpdate` when daily aggregation runs
+
+**Key Files**:
+- macOS: `Grind-macOS/Grind/Services/Network/NetworkService.swift`
+- iOS: `Grind-iOS/Grind/Services/NetworkClient.swift`
+- Protocol: `Grind-iOS/Grind/Models/NetworkMessage.swift`
+
+See `NETWORK_CLIENT_INTEGRATION.md` for detailed protocol documentation.
+
+## Common Development Tasks
+
+### Testing iOS Dashboard with Real Data
+
+The iOS dashboard requires aggregated data from macOS. To generate test data:
+
+**Method 1: Manual aggregation trigger**
+```swift
+// Add to macOS ContentView.swift or create a debug button
+let calendar = Calendar.current
+for dayOffset in 0..<7 {
+    let date = calendar.date(byAdding: .day, value: -dayOffset, to: Date())!
+    TimeBlockAggregator.shared.aggregateToDailyStats(for: date)
+}
+```
+
+**Method 2: Auto-aggregate on startup**
+```swift
+// Add to GrindApp.swift init()
+Task {
+    let calendar = Calendar.current
+    for dayOffset in 0..<7 {
+        let date = calendar.date(byAdding: .day, value: -dayOffset, to: Date())!
+        TimeBlockAggregator.shared.aggregateToDailyStats(for: date)
+    }
+}
+```
+
+### Debugging Network Connection Issues
+
+**Check macOS server status**:
+```bash
+# Verify server is listening
+lsof -i TCP:9527
+
+# Check Bonjour service is advertised
+dns-sd -B _grind._tcp
+```
+
+**iOS connection debugging**:
+- Ensure both devices on same WiFi network
+- Check Local Network permission granted to iOS app
+- Look for "Connected to [Mac Name]" indicator in DashboardView
+- Monitor NetworkClient connection status via `@Published var connectionStatus`
+
+**Manual connection (bypass Bonjour)**:
+```swift
+// In DashboardViewModel.swift
+networkClient.connectToServer(host: "192.168.1.100", port: 9527)
+```
+
+### Database Inspection
+
+```bash
+# Open database with sqlite3
+sqlite3 ~/Library/Application\ Support/Grind/grind.db
+
+# Useful queries
+SELECT COUNT(*) FROM heartbeats;
+SELECT date, SUM(total_duration_seconds) FROM daily_stats GROUP BY date;
+SELECT * FROM blocks_5min WHERE block_start >= datetime('now', '-1 day');
+```
+
+### Running Aggregation Script
+
+For pre-existing heartbeat data:
+```bash
+cd Grind-macOS
+./reaggregate_heartbeats.sh  # Re-aggregates all historical heartbeats
+```
+
+## Coding Standards
+
+**Swift Version**: 5.9+
+**Formatting**:
+- 4-space indentation
+- `UpperCamelCase` for types
+- `lowerCamelCase` for properties/functions
+- Use Xcode's "Re-Indent" or swift-format
+
+**File Organization**:
+- One feature per file
+- Cross-cutting helpers in `Utilities/`
+- Protocol-first abstractions in `Services/`
+
+**Testing**:
+- XCTest with descriptive method names
+- Target ≥80% code coverage
+- Mock network/database layers with stubs
+
+**Git Commits**:
+- Imperative style: "Add feature" not "Added feature"
+- Prefix with platform when relevant: `macOS:`, `iOS:`
+- Include testing evidence in commit body

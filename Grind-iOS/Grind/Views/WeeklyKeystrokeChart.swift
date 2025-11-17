@@ -82,7 +82,6 @@ struct WeeklyKeystrokeChart: View {
             }
         }
         .chartLegend(.hidden)
-        .frame(height: 220)
         .overlay(alignment: .topTrailing) {
             if let dateLabel = selectedDateLabel, !selectionRows.isEmpty {
                 ChartSelectionSummaryCard(title: dateLabel, rows: selectionRows)
@@ -101,8 +100,7 @@ struct WeeklyKeystrokeChart: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
-        .frame(height: 220)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Helper Functions

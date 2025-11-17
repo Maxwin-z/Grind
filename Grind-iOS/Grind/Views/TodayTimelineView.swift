@@ -14,7 +14,7 @@ struct TodayTimelineView: View {
     private let blocksPerHour = 12  // 5-minute blocks per hour
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Today's Activity Timeline")
                 .font(.headline)
                 .foregroundColor(.primary)
@@ -26,7 +26,7 @@ struct TodayTimelineView: View {
             }
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(Color(.red))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }

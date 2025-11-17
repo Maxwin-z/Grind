@@ -9,7 +9,12 @@ import SwiftUI
 
 struct DashboardView: View {
     @StateObject private var viewModel = DashboardViewModel()
-    private let columnSpacing: CGFloat = 16
+
+    // MARK: - Layout Constants
+    private let padding: CGFloat = 16
+
+    // MARK: - State for dynamic heights
+    @State private var timelineHeight: CGFloat = 0
     @State private var appLegendHeight: CGFloat = 0
 
     private var legendAppNames: [String] {
@@ -24,129 +29,114 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            // Main content - Full screen utilization
-            VStack(spacing: columnSpacing) {
-                // Today's Activity Timeline - Full width at top
-                TodayTimelineView(timeBlocks: viewModel.todayTimeBlocks)
-                    .frame(height: 200)
+        GeometryReader { screen in
+            let layout = calculateLayout(screenWidth: screen.size.width, screenHeight: screen.size.height)
+            
 
-                // Two columns below with 2:3 ratio
-                GeometryReader { geometry in
-                    let layout = calculateDashboardLayout(
-                        totalWidth: geometry.size.width,
-                        spacing: columnSpacing
-                    )
-                    let upperSectionHeight = max(geometry.size.height - layout.bottomHeight - columnSpacing, 0)
-                    let chartsAvailableHeight = max(upperSectionHeight - appLegendHeight - columnSpacing, 0)
-
-                    HStack(spacing: columnSpacing) {
-                        // Column 1 (adaptive width): Apps + Weekly charts
-                        VStack(spacing: 0) {
-                            VStack(spacing: columnSpacing) {
-                                AppLegendListView(
-                                    appNames: legendAppNames,
-                                    appMetadata: viewModel.appSelectionMetadata
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: padding) {
+                    // 1. Today's Activity Timeline
+                    TodayTimelineView(timeBlocks: viewModel.todayTimeBlocks)
+                        .frame(width: layout.timelineWidth)
+                        .background(
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: TimelineHeightPreferenceKey.self,
+                                    value: proxy.size.height
                                 )
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    GeometryReader { proxy in
-                                        Color.clear.preference(
-                                            key: AppLegendHeightPreferenceKey.self,
-                                            value: proxy.size.height
-                                        )
-                                    }
-                                )
+                            }
+                        )
 
-                            ChartColumnView(
-                                totalHeight: chartsAvailableHeight,
-                                spacing: columnSpacing,
-                                activityChart: {
-                                    WeeklyActivityChart(
-                                        data: viewModel.dailyActivityData,
-                                        appMetadata: viewModel.appSelectionMetadata
-                                    )
-                                },
-                                keystrokeChart: {
-                                    WeeklyKeystrokeChart(
-                                        data: viewModel.dailyKeystrokeData,
-                                        appMetadata: viewModel.appSelectionMetadata
+                    // 2. Main content area
+                    HStack(spacing: padding) {
+                        // Left Column: Apps + Two Charts
+                        VStack(spacing: padding) {
+                            // Apps (3-column layout, self-sizing)
+                            AppLegendListView(
+                                appNames: legendAppNames,
+                                appMetadata: viewModel.appSelectionMetadata
+                            )
+                            .frame(width: layout.appListWidth)
+                            .background(
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: AppLegendHeightPreferenceKey.self,
+                                        value: proxy.size.height
                                     )
                                 }
                             )
-                            }
-                            .frame(height: upperSectionHeight, alignment: .top)
 
-                            Spacer(minLength: 0)
+                            // Weekly Activity Chart
+                            WeeklyActivityChart(
+                                data: viewModel.dailyActivityData,
+                                appMetadata: viewModel.appSelectionMetadata
+                            )
+                            .frame(width: layout.chartWidth, height: layout.chartHeight)
+
+                            // Weekly Keystroke Chart
+                            WeeklyKeystrokeChart(
+                                data: viewModel.dailyKeystrokeData,
+                                appMetadata: viewModel.appSelectionMetadata
+                            )
+                            .frame(width: layout.chartWidth, height: layout.chartHeight)
                         }
-                        .frame(width: layout.leftWidth, height: geometry.size.height, alignment: .top)
 
-                        // Column 2: prioritize typing + keyboard width
-                        VStack(spacing: columnSpacing) {
+                        // Right Column: iTerm2 + (Typing Speed + Keyboard)
+                        VStack(spacing: padding) {
+                            // iTerm2 Terminal View
                             ITerm2TerminalView(sessions: viewModel.iterm2Sessions)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: upperSectionHeight)
-                                .layoutPriority(1)
+                                .frame(width: layout.iterm2Width, height: layout.iterm2Height)
 
-                            HStack(spacing: columnSpacing) {
-                                TypingSpeedCompactView(
-                                    kpm: viewModel.currentKPM
+                            // Bottom row: Typing Speed + Keyboard
+                            HStack(spacing: padding) {
+                                // Typing Speed (square)
+                                TypingSpeedCompactView(kpm: viewModel.currentKPM)
+                                    .frame(width: layout.typingSpeedSize, height: layout.typingSpeedSize)
+
+                                // Keyboard Visualizer
+                                KeyboardVisualizerView(
+                                    currentKey: viewModel.currentKey,
+                                    currentModifiers: viewModel.currentModifiers,
+                                    keystrokeSequence: viewModel.keystrokeSequence
                                 )
-                                .frame(width: layout.typingWidth, alignment: .center)
-                                .frame(height: layout.bottomHeight)
-
-                                VStack {
-                                    KeyboardVisualizerView(
-                                        currentKey: viewModel.currentKey,
-                                        currentModifiers: viewModel.currentModifiers,
-                                        keystrokeSequence: viewModel.keystrokeSequence
-                                    )
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    .padding(8)
-                                }
-                                .frame(width: layout.keyboardWidth)
-                                .frame(height: layout.bottomHeight)
+                                .frame(width: layout.keyboardWidth, height: layout.keyboardHeight)
                                 .background(Color(.systemBackground))
                                 .cornerRadius(12)
                                 .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                .layoutPriority(1)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .frame(height: layout.bottomHeight)
                         }
-                        .frame(width: layout.rightWidth, height: geometry.size.height)
                     }
                 }
-                .frame(maxHeight: .infinity)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 16)
+                .padding(padding)
 
-            // Floating reconnect button and status (top-right) - No layout impact
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(viewModel.isConnected ? Color.green : Color.red)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: (viewModel.isConnected ? Color.green : Color.red).opacity(0.5), radius: 3, x: 0, y: 0)
+                // Floating connection status and refresh button (top-right)
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(viewModel.isConnected ? Color.green : Color.red)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: (viewModel.isConnected ? Color.green : Color.red).opacity(0.5), radius: 3, x: 0, y: 0)
 
-                Button(action: {
-                    viewModel.refreshData()
-                }) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.primary)
-                        .frame(width: 32, height: 32)
-                        .background(Color(.systemBackground).opacity(0.9))
-                        .clipShape(Circle())
-                        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 2)
+                    Button(action: {
+                        viewModel.refreshData()
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                            .frame(width: 32, height: 32)
+                            .background(Color(.systemBackground).opacity(0.9))
+                            .clipShape(Circle())
+                            .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 2)
+                    }
                 }
+                .padding(.trailing, 20)
+                .padding(.top, 60)
             }
-            .padding(.trailing, 20)
-            .padding(.top, 60)
+            .background(Color(.systemGroupedBackground))
+            .ignoresSafeArea(.all, edges: .all)
         }
-        .background(Color(.systemGroupedBackground))
-        .ignoresSafeArea(.all, edges: .all)
+        .onPreferenceChange(TimelineHeightPreferenceKey.self) { newHeight in
+            timelineHeight = newHeight
+        }
         .onPreferenceChange(AppLegendHeightPreferenceKey.self) { newHeight in
             appLegendHeight = newHeight
         }
@@ -155,49 +145,58 @@ struct DashboardView: View {
 
 // MARK: - Layout Helpers
 
-private struct DashboardColumnLayout {
-    let leftWidth: CGFloat
-    let rightWidth: CGFloat
-    let typingWidth: CGFloat
+private struct DashboardLayout {
+    let timelineWidth: CGFloat
     let keyboardWidth: CGFloat
-    let bottomHeight: CGFloat
+    let keyboardHeight: CGFloat
+    let typingSpeedSize: CGFloat
+    let iterm2Width: CGFloat
+    let iterm2Height: CGFloat
+    let appListWidth: CGFloat
+    let chartWidth: CGFloat
+    let chartHeight: CGFloat
 }
 
-private func calculateDashboardLayout(totalWidth: CGFloat, spacing: CGFloat) -> DashboardColumnLayout {
-    let minimumKeyboardWidth: CGFloat = 520
-    let minimumTypingWidth: CGFloat = 200
-    let minimumRightColumnWidth = minimumKeyboardWidth + minimumTypingWidth + spacing
-    let desiredRightWidth = max(totalWidth * 0.55, minimumRightColumnWidth)
-    let rightWidth = min(desiredRightWidth, totalWidth)
-    let leftWidth = max(totalWidth - rightWidth - spacing, 0)
-    let safeRightWidth = max(rightWidth, 0)
-    let typingRatio: CGFloat = 0.35
-    var typingWidth = max(safeRightWidth * typingRatio, minimumTypingWidth)
-    var keyboardWidth = safeRightWidth - typingWidth - spacing
+extension DashboardView {
+    private func calculateLayout(screenWidth: CGFloat, screenHeight: CGFloat) -> DashboardLayout {
+        // Step 1: TodayTimelineView
+        let timelineWidth = screenWidth - padding * 2
 
-    if keyboardWidth < minimumKeyboardWidth {
-        keyboardWidth = min(
-            max(minimumKeyboardWidth, 0),
-            max(safeRightWidth - spacing, 0)
+        // Step 2: KeyboardVisualizerView (w = screen.w/2, aspect ratio 5:2)
+        let keyboardWidth = (CGFloat)(500)
+        let keyboardHeight = keyboardWidth * 2 / 5
+
+        // Step 3: TypingSpeedCompactView (square, size = keyboard height)
+        let typingSpeedSize = keyboardHeight
+
+        // Step 4: ITerm2TerminalView
+        let iterm2Width = keyboardWidth + typingSpeedSize + padding
+        let iterm2Height = screenHeight - keyboardHeight - timelineHeight - padding * 4
+
+        // Step 5: AppLegendListView
+        let appListWidth = screenWidth - iterm2Width - padding * 3
+
+        // Step 6: WeeklyActivityChart and WeeklyKeystrokeChart
+        let chartWidth = appListWidth
+        let chartHeight = (screenHeight - timelineHeight - appLegendHeight - padding * 5) / 2
+
+        return DashboardLayout(
+            timelineWidth: timelineWidth,
+            keyboardWidth: keyboardWidth,
+            keyboardHeight: keyboardHeight,
+            typingSpeedSize: typingSpeedSize,
+            iterm2Width: iterm2Width,
+            iterm2Height: iterm2Height,
+            appListWidth: appListWidth,
+            chartWidth: chartWidth,
+            chartHeight: chartHeight
         )
-        typingWidth = max(safeRightWidth - keyboardWidth - spacing, 0)
     }
-
-    let bottomHeight = max(
-        TypingSpeedCompactView.preferredHeight,
-        KeyboardVisualizerView.preferredHeight
-    )
-
-    return DashboardColumnLayout(
-        leftWidth: leftWidth,
-        rightWidth: rightWidth,
-        typingWidth: typingWidth,
-        keyboardWidth: keyboardWidth,
-        bottomHeight: bottomHeight
-    )
 }
 
-private struct AppLegendHeightPreferenceKey: PreferenceKey {
+// MARK: - Preference Keys
+
+private struct TimelineHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -205,25 +204,11 @@ private struct AppLegendHeightPreferenceKey: PreferenceKey {
     }
 }
 
-private struct ChartColumnView<ActivityChart: View, KeystrokeChart: View>: View {
-    let totalHeight: CGFloat
-    let spacing: CGFloat
-    let activityChart: () -> ActivityChart
-    let keystrokeChart: () -> KeystrokeChart
+private struct AppLegendHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
 
-    var body: some View {
-        GeometryReader { proxy in
-            let availableHeight = max(totalHeight, 0)
-            let chartHeight = max((availableHeight - spacing) / 2, 120)
-
-            VStack(spacing: spacing) {
-                activityChart()
-                    .frame(height: chartHeight)
-                keystrokeChart()
-                    .frame(height: chartHeight)
-            }
-        }
-        .frame(height: totalHeight)
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
