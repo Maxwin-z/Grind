@@ -131,41 +131,45 @@ struct TodayTimelineView: View {
     }
 }
 
-#Preview {
-    let calendar = Calendar.current
-    let today = calendar.startOfDay(for: Date())
+#if DEBUG
+struct TodayTimelineView_Previews: PreviewProvider {
+    static var previews: some View {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
 
-    let sampleBlocks = [
-        TimeBlock(
-            blockStart: calendar.date(byAdding: .hour, value: 9, to: today)!,
-            hasActivity: true,
-            appName: "Xcode",
-            duration: 300,
-            keystrokes: 45
-        ),
-        TimeBlock(
-            blockStart: calendar.date(byAdding: .minute, value: 545, to: today)!,  // 9:05
-            hasActivity: true,
-            appName: "Xcode",
-            duration: 300,
-            keystrokes: 52
-        ),
-        TimeBlock(
-            blockStart: calendar.date(byAdding: .hour, value: 14, to: today)!,
-            hasActivity: true,
-            appName: "Safari",
-            duration: 180,
-            keystrokes: 23
-        ),
-        TimeBlock(
-            blockStart: calendar.date(byAdding: .minute, value: 900, to: today)!,  // 15:00
-            hasActivity: true,
-            appName: "Terminal",
-            duration: 240,
-            keystrokes: 67
-        )
-    ]
+        let sampleBlocks = [
+            TimeBlock(
+                blockStart: calendar.date(byAdding: .hour, value: 9, to: today)!,
+                hasActivity: true,
+                appName: "Xcode",
+                duration: 300,
+                keystrokes: 45
+            ),
+            TimeBlock(
+                blockStart: calendar.date(byAdding: .minute, value: 545, to: today)!,  // 9:05
+                hasActivity: true,
+                appName: "Xcode",
+                duration: 300,
+                keystrokes: 52
+            ),
+            TimeBlock(
+                blockStart: calendar.date(byAdding: .hour, value: 14, to: today)!,
+                hasActivity: true,
+                appName: "Safari",
+                duration: 180,
+                keystrokes: 23
+            ),
+            TimeBlock(
+                blockStart: calendar.date(byAdding: .minute, value: 900, to: today)!,  // 15:00
+                hasActivity: true,
+                appName: "Terminal",
+                duration: 240,
+                keystrokes: 67
+            )
+        ]
 
-    return TodayTimelineView(timeBlocks: sampleBlocks)
-        .padding()
+        return TodayTimelineView(timeBlocks: sampleBlocks)
+            .padding()
+    }
 }
+#endif

@@ -25,10 +25,16 @@ struct DashboardView: View {
                     )
 
                     // Weekly activity chart
-                    WeeklyActivityChart(data: viewModel.dailyActivityData)
+                    WeeklyActivityChart(
+                        data: viewModel.dailyActivityData,
+                        appMetadata: viewModel.appSelectionMetadata
+                    )
 
                     // Weekly keystroke chart
-                    WeeklyKeystrokeChart(data: viewModel.dailyKeystrokeData)
+                    WeeklyKeystrokeChart(
+                        data: viewModel.dailyKeystrokeData,
+                        appMetadata: viewModel.appSelectionMetadata
+                    )
 
                     // Today's timeline
                     TodayTimelineView(timeBlocks: viewModel.todayTimeBlocks)
@@ -69,6 +75,10 @@ struct DashboardView: View {
     }
 }
 
-#Preview {
-    DashboardView()
+#if DEBUG
+struct DashboardView_Previews: PreviewProvider {
+    static var previews: some View {
+        DashboardView()
+    }
 }
+#endif

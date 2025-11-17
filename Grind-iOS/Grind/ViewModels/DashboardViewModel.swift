@@ -20,6 +20,7 @@ class DashboardViewModel: ObservableObject {
 
     // Today's data
     @Published var todayTimeBlocks: [TimeBlock] = []
+    @Published var appSelectionMetadata: [String: SelectedAppData] = [:]
 
     // Realtime data
     @Published var currentKPM: Int = 0
@@ -66,6 +67,7 @@ class DashboardViewModel: ObservableObject {
             .sink { [weak self] apps in
                 guard let self = self else { return }
                 self.selectedAppNames = Set(apps.map { $0.appName })
+                self.appSelectionMetadata = Dictionary(uniqueKeysWithValues: apps.map { ($0.appName, $0) })
                 self.didReceiveSelectionSnapshot = true
                 self.recalculateHistoricalCharts()
             }

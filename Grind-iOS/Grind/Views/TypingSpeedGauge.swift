@@ -134,11 +134,15 @@ struct TypingSpeedGauge: View {
     }
 }
 
-#Preview {
-    VStack(spacing: 20) {
-        TypingSpeedGauge(kpm: 85, currentApp: "Xcode", isTyping: true)
-        TypingSpeedGauge(kpm: 150, currentApp: "VS Code", isTyping: false)
-        TypingSpeedGauge(kpm: 0, currentApp: "—", isTyping: false)
+#if DEBUG
+struct TypingSpeedGauge_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack(spacing: 20) {
+            TypingSpeedGauge(kpm: 85, currentApp: "Xcode", isTyping: true)
+            TypingSpeedGauge(kpm: 150, currentApp: "VS Code", isTyping: false)
+            TypingSpeedGauge(kpm: 0, currentApp: "—", isTyping: false)
+        }
+        .padding()
     }
-    .padding()
 }
+#endif
