@@ -39,26 +39,9 @@ struct KeyboardLayout75 {
 
     // Layout: 75% keyboard (84 keys)
     static let layout: [[KeyboardKey]] = [
-        // Row 1: Function row + Esc + Delete
+        // Row 1: Number row (with Esc)
         [
             KeyboardKey(label: "Esc", keyCode: "Escape", width: 1.0, keyType: .special),
-            KeyboardKey(label: "F1", keyCode: "F1", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F2", keyCode: "F2", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F3", keyCode: "F3", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F4", keyCode: "F4", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F5", keyCode: "F5", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F6", keyCode: "F6", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F7", keyCode: "F7", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F8", keyCode: "F8", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F9", keyCode: "F9", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F10", keyCode: "F10", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F11", keyCode: "F11", width: 1.0, keyType: .function),
-            KeyboardKey(label: "F12", keyCode: "F12", width: 1.0, keyType: .function),
-            KeyboardKey(label: "Del", keyCode: "Forward Delete", width: 1.0, keyType: .special),
-        ],
-
-        // Row 2: Number row
-        [
             KeyboardKey(label: "`", keyCode: "`", width: 1.0, keyType: .character),
             KeyboardKey(label: "1", keyCode: "1", width: 1.0, keyType: .character),
             KeyboardKey(label: "2", keyCode: "2", width: 1.0, keyType: .character),
@@ -73,10 +56,9 @@ struct KeyboardLayout75 {
             KeyboardKey(label: "-", keyCode: "-", width: 1.0, keyType: .character),
             KeyboardKey(label: "=", keyCode: "=", width: 1.0, keyType: .character),
             KeyboardKey(label: "⌫", keyCode: "Delete", width: 2.0, keyType: .special),
-            KeyboardKey(label: "Home", keyCode: "Home", width: 1.0, keyType: .navigation),
         ],
 
-        // Row 3: QWERTY row
+        // Row 2: QWERTY row
         [
             KeyboardKey(label: "Tab", keyCode: "Tab", width: 1.5, keyType: .special),
             KeyboardKey(label: "Q", keyCode: "Q", width: 1.0, keyType: .character),
@@ -95,7 +77,7 @@ struct KeyboardLayout75 {
             KeyboardKey(label: "PgU", keyCode: "Page Up", width: 1.0, keyType: .navigation),
         ],
 
-        // Row 4: ASDF row
+        // Row 3: ASDF row
         [
             KeyboardKey(label: "Caps", keyCode: "Caps Lock", width: 1.75, keyType: .modifier),
             KeyboardKey(label: "A", keyCode: "A", width: 1.0, keyType: .character),
@@ -113,7 +95,7 @@ struct KeyboardLayout75 {
             KeyboardKey(label: "PgD", keyCode: "Page Down", width: 1.0, keyType: .navigation),
         ],
 
-        // Row 5: ZXCV row
+        // Row 4: ZXCV row
         [
             KeyboardKey(label: "⇧", keyCode: "Shift", width: 2.25, keyType: .modifier),
             KeyboardKey(label: "Z", keyCode: "Z", width: 1.0, keyType: .character),
@@ -131,7 +113,7 @@ struct KeyboardLayout75 {
             KeyboardKey(label: "End", keyCode: "End", width: 1.0, keyType: .navigation),
         ],
 
-        // Row 6: Bottom row
+        // Row 5: Bottom row
         [
             KeyboardKey(label: "Ctrl", keyCode: "Control", width: 1.25, keyType: .modifier),
             KeyboardKey(label: "⌥", keyCode: "Option", width: 1.25, keyType: .modifier),
