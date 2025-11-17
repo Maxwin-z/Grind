@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct TodayTimelineView: View {
-    let timeBlocks: [TimeBlockData]
+    let timeBlocks: [TimeBlock]
 
     private let hoursInDay = 24
     private let blocksPerHour = 12  // 5-minute blocks per hour
@@ -136,21 +136,33 @@ struct TodayTimelineView: View {
     let today = calendar.startOfDay(for: Date())
 
     let sampleBlocks = [
-        TimeBlockData(
+        TimeBlock(
             blockStart: calendar.date(byAdding: .hour, value: 9, to: today)!,
-            hasActivity: true
+            hasActivity: true,
+            appName: "Xcode",
+            duration: 300,
+            keystrokes: 45
         ),
-        TimeBlockData(
+        TimeBlock(
             blockStart: calendar.date(byAdding: .minute, value: 545, to: today)!,  // 9:05
-            hasActivity: true
+            hasActivity: true,
+            appName: "Xcode",
+            duration: 300,
+            keystrokes: 52
         ),
-        TimeBlockData(
+        TimeBlock(
             blockStart: calendar.date(byAdding: .hour, value: 14, to: today)!,
-            hasActivity: true
+            hasActivity: true,
+            appName: "Safari",
+            duration: 180,
+            keystrokes: 23
         ),
-        TimeBlockData(
+        TimeBlock(
             blockStart: calendar.date(byAdding: .minute, value: 900, to: today)!,  // 15:00
-            hasActivity: true
+            hasActivity: true,
+            appName: "Terminal",
+            duration: 240,
+            keystrokes: 67
         )
     ]
 

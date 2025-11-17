@@ -133,6 +133,9 @@ class NetworkService: ObservableObject {
 
         // Send historical stats
         sendHistoricalStats(to: connection)
+
+        // Send today's time blocks
+        sendTodayTimeBlocks(to: connection)
     }
 
     private func handleConnectionStateChange(_ connection: NWConnection, state: NWConnection.State) {
@@ -239,6 +242,38 @@ class NetworkService: ObservableObject {
 
             } catch {
                 logger.error("Failed to fetch historical stats: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func sendTodayTimeBlocks(to connection: NWConnection) {
+        Task {
+            do {
+                let repository = TimeBlockRepository()
+                let blocks = try repository.getTodayBlocks()
+
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                let today = dateFormatter.string(from: Date())
+
+                let blockData = blocks.map { block in
+                    TimeBlockData(
+                        blockStart: block.blockStart,
+                        appName: block.appName,
+                        duration: block.activeDuration,
+                        keystrokes: block.keystrokeCount,
+                        mouseMovements: 0, // Not available in TimeBlock model
+                        mouseClicks: 0
+                    )
+                }
+
+                let message = TimeBlocksMessage(date: today, blocks: blockData)
+                sendMessage(message, to: connection)
+
+                logger.info("Sent \(blocks.count) time blocks for today")
+
+            } catch {
+                logger.error("Failed to fetch today's time blocks: \(error.localizedDescription)")
             }
         }
     }

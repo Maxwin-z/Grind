@@ -17,6 +17,7 @@ protocol NetworkMessage: Codable {
 enum MessageType: String, Codable {
     case welcome
     case historicalStats
+    case timeBlocks
     case realtimeActivity
     case keystroke
     case mouseEvent
@@ -73,6 +74,29 @@ struct AppStatsData: Codable {
     let mouseMovements: Int
     let mouseClicks: Int
     let lastActive: Date?
+}
+
+/// Time blocks message (5-minute blocks for today)
+struct TimeBlocksMessage: NetworkMessage {
+    let type: MessageType = .timeBlocks
+    let timestamp: Date
+    let date: String // YYYY-MM-DD format
+    let blocks: [TimeBlockData]
+
+    init(date: String, blocks: [TimeBlockData]) {
+        self.timestamp = Date()
+        self.date = date
+        self.blocks = blocks
+    }
+}
+
+struct TimeBlockData: Codable {
+    let blockStart: Date
+    let appName: String?
+    let duration: Int // seconds of activity in this block
+    let keystrokes: Int
+    let mouseMovements: Int
+    let mouseClicks: Int
 }
 
 /// Real-time activity update

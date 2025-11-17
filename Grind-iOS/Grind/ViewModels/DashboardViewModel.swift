@@ -19,7 +19,7 @@ class DashboardViewModel: ObservableObject {
     @Published var dailyKeystrokeData: [DailyKeystrokeChartData] = []
 
     // Today's data
-    @Published var todayTimeBlocks: [TimeBlockData] = []
+    @Published var todayTimeBlocks: [TimeBlock] = []
 
     // Realtime data
     @Published var currentKPM: Int = 0
@@ -58,6 +58,14 @@ class DashboardViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Process time blocks
+        networkClient.$timeBlocks
+            .compactMap { $0 }
+            .sink { [weak self] timeBlocksData in
+                self?.processTimeBlocks(timeBlocksData)
+            }
+            .store(in: &cancellables)
+
         // Process realtime activity
         networkClient.$realtimeActivity
             .compactMap { $0 }
@@ -75,6 +83,10 @@ class DashboardViewModel: ObservableObject {
     // MARK: - Data Processing
 
     private func processHistoricalData(_ data: HistoricalStatsData) {
+        print("📊 Processing historical data...")
+        print("   - Received \(data.dailyStats.count) daily stats")
+        print("   - Received \(data.topApps.count) top apps")
+
         // Process last 7 days for activity chart
         let last7Days = getLast7Days()
         var activityByDate: [String: [DailyActivityByApp]] = [:]
@@ -83,6 +95,7 @@ class DashboardViewModel: ObservableObject {
         // For now, use dailyStats as placeholder
         for dayStats in data.dailyStats.suffix(7) {
             let date = dayStats.date
+            print("   - Day \(date): \(dayStats.totalSeconds)s, \(dayStats.totalKeystrokes) keys")
             // This is a simplified version - in reality we need per-app breakdown
             activityByDate[date] = [
                 DailyActivityByApp(appName: "Total", duration: dayStats.totalSeconds)
@@ -110,12 +123,33 @@ class DashboardViewModel: ObservableObject {
             return DailyKeystrokeChartData(date: dateStr, appKeystrokes: apps)
         }
 
-        print("📊 Processed \(dailyActivityData.count) days of activity data")
+        print("✅ Processed \(dailyActivityData.count) days of activity data")
+        print("✅ Activity data has \(dailyActivityData.filter { !$0.appActivities.isEmpty }.count) days with data")
+        print("✅ Keystroke data has \(dailyKeystrokeData.filter { !$0.appKeystrokes.isEmpty }.count) days with data")
     }
 
     private func processRealtimeActivity(_ data: RealtimeActivityData) {
         currentApp = data.activeApp.appName
         isTyping = data.isTyping
+    }
+
+    private func processTimeBlocks(_ data: TimeBlocksData) {
+        print("📅 Processing time blocks for \(data.date)...")
+        print("   - Received \(data.blocks.count) time blocks")
+
+        // Convert TimeBlockData to TimeBlock for the view
+        todayTimeBlocks = data.blocks.map { block in
+            TimeBlock(
+                blockStart: block.blockStart,
+                hasActivity: block.duration > 0,
+                appName: block.appName,
+                duration: block.duration,
+                keystrokes: block.keystrokes
+            )
+        }
+
+        let activeBlocks = todayTimeBlocks.filter { $0.hasActivity }.count
+        print("✅ Processed \(todayTimeBlocks.count) time blocks (\(activeBlocks) with activity)")
     }
 
     // MARK: - Helper Functions
@@ -165,8 +199,11 @@ struct DailyKeystrokeByApp: Identifiable {
     let keystrokes: Int
 }
 
-struct TimeBlockData: Identifiable {
+struct TimeBlock: Identifiable {
     let id = UUID()
     let blockStart: Date
     let hasActivity: Bool
+    let appName: String?
+    let duration: Int
+    let keystrokes: Int
 }

@@ -18,6 +18,7 @@ class NetworkClient: NSObject, ObservableObject {
     @Published var isConnected = false
     @Published var connectionStatus: String = "Disconnected"
     @Published var historicalStats: HistoricalStatsData?
+    @Published var timeBlocks: TimeBlocksData?
     @Published var realtimeActivity: RealtimeActivityData?
     @Published var currentKPM: Int = 0  // Keys per minute
 
@@ -195,6 +196,10 @@ class NetworkClient: NSObject, ObservableObject {
         case .historicalStats(let data):
             print("📊 Received historical stats: \(data.dailyStats.count) days, \(data.topApps.count) apps")
             historicalStats = data
+
+        case .timeBlocks(let data):
+            print("📅 Received time blocks for \(data.date): \(data.blocks.count) blocks")
+            timeBlocks = data
 
         case .realtimeActivity(let data):
             realtimeActivity = data

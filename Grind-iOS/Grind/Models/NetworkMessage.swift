@@ -12,6 +12,7 @@ import Foundation
 enum NetworkMessageType: String, Codable {
     case welcome
     case historicalStats
+    case timeBlocks
     case realtimeActivity
     case heartbeat
     case keystroke
@@ -33,6 +34,7 @@ struct NetworkMessage: Codable {
 enum PayloadData: Codable {
     case welcome(WelcomeData)
     case historicalStats(HistoricalStatsData)
+    case timeBlocks(TimeBlocksData)
     case realtimeActivity(RealtimeActivityData)
     case heartbeat(HeartbeatData)
     case keystroke(KeystrokeData)
@@ -52,6 +54,8 @@ enum PayloadData: Codable {
             self = .welcome(welcome)
         } else if let historical = try? container.decode(HistoricalStatsData.self) {
             self = .historicalStats(historical)
+        } else if let timeBlocks = try? container.decode(TimeBlocksData.self) {
+            self = .timeBlocks(timeBlocks)
         } else if let realtime = try? container.decode(RealtimeActivityData.self) {
             self = .realtimeActivity(realtime)
         } else if let heartbeat = try? container.decode(HeartbeatData.self) {
@@ -76,6 +80,8 @@ enum PayloadData: Codable {
         case .welcome(let data):
             try container.encode(data)
         case .historicalStats(let data):
+            try container.encode(data)
+        case .timeBlocks(let data):
             try container.encode(data)
         case .realtimeActivity(let data):
             try container.encode(data)
@@ -125,6 +131,21 @@ struct AppStatsData: Codable, Identifiable {
     let mouseMovements: Int
     let mouseClicks: Int
     let lastActive: Date?
+}
+
+struct TimeBlocksData: Codable {
+    let date: String
+    let blocks: [TimeBlockData]
+}
+
+struct TimeBlockData: Codable, Identifiable {
+    var id: Date { blockStart }
+    let blockStart: Date
+    let appName: String?
+    let duration: Int
+    let keystrokes: Int
+    let mouseMovements: Int
+    let mouseClicks: Int
 }
 
 struct RealtimeActivityData: Codable {
