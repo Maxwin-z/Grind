@@ -27,6 +27,48 @@ struct NetworkMessage: Codable {
     let type: NetworkMessageType
     let timestamp: Date
     let payload: PayloadData
+
+    // Custom decoding to handle flat message structure from macOS
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(NetworkMessageType.self, forKey: .type)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+
+        // Decode the entire container as the payload based on type
+        switch type {
+        case .welcome:
+            let data = try WelcomeData(from: decoder)
+            payload = .welcome(data)
+        case .historicalStats:
+            let data = try HistoricalStatsData(from: decoder)
+            payload = .historicalStats(data)
+        case .timeBlocks:
+            let data = try TimeBlocksData(from: decoder)
+            payload = .timeBlocks(data)
+        case .realtimeActivity:
+            let data = try RealtimeActivityData(from: decoder)
+            payload = .realtimeActivity(data)
+        case .heartbeat:
+            let data = try HeartbeatData(from: decoder)
+            payload = .heartbeat(data)
+        case .keystroke:
+            let data = try KeystrokeData(from: decoder)
+            payload = .keystroke(data)
+        case .mouseEvent:
+            let data = try MouseEventData(from: decoder)
+            payload = .mouseEvent(data)
+        case .iterm2Sessions:
+            let data = try ITerm2SessionsData(from: decoder)
+            payload = .iterm2Sessions(data)
+        case .error:
+            let data = try ErrorData(from: decoder)
+            payload = .error(data)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type, timestamp
+    }
 }
 
 // MARK: - Payload Data
@@ -165,21 +207,25 @@ struct ActiveAppData: Codable {
 }
 
 struct HeartbeatData: Codable {
-    let totalKeystrokesLastMinute: Int
-    let totalMouseMovementsLastMinute: Int
-    let totalMouseClicksLastMinute: Int
-    let activeTimeLastMinute: Int
+    let activeApp: ActiveAppData?
+    let isActive: Bool
+    let keystrokesLastMinute: Int
+    let mouseEventsLastMinute: Int
 }
 
 struct KeystrokeData: Codable {
-    let timestamp: Date
-    let appName: String
+    let key: String
+    let keyCode: UInt16
+    let modifiers: [String]
+    let appBundleIdentifier: String
 }
 
 struct MouseEventData: Codable {
-    let timestamp: Date
-    let appName: String
-    let eventType: String // "movement" or "click"
+    let eventType: String
+    let x: Double?
+    let y: Double?
+    let button: Int?
+    let appBundleIdentifier: String
 }
 
 struct ITerm2SessionsData: Codable {
@@ -188,8 +234,13 @@ struct ITerm2SessionsData: Codable {
 
 struct ITerm2Session: Codable {
     let sessionId: String
-    let tabTitle: String
-    let workingDirectory: String
+    let name: String
+    let currentDirectory: String?
+    let currentCommand: String?
+    let isActive: Bool
+    let windowIndex: Int
+    let tabIndex: Int
+    let paneIndex: Int
 }
 
 struct ErrorData: Codable {

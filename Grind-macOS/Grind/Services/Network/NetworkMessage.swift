@@ -197,12 +197,13 @@ struct MessageEncoder {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]
 
-        // Wrap in envelope with type
+        // Encode the message directly (flat structure)
         let json = try encoder.encode(message)
 
         // Add length prefix (4 bytes) for frame delimiting
+        // Use big-endian (network byte order) for cross-platform compatibility
         var lengthData = Data()
-        var length = UInt32(json.count)
+        var length = UInt32(json.count).bigEndian
         withUnsafeBytes(of: &length) { lengthData.append(contentsOf: $0) }
 
         return lengthData + json

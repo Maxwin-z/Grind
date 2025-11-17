@@ -37,6 +37,7 @@ class NetworkService: ObservableObject {
             return
         }
 
+        logger.info("🚀 Starting network server...")
         do {
             let parameters = NWParameters.tcp
             parameters.allowLocalEndpointReuse = true
@@ -49,6 +50,7 @@ class NetworkService: ObservableObject {
             parameters.serviceClass = .responsiveData
 
             // Advertise as "_grind._tcp" service
+            logger.info("   Advertising Bonjour service '_grind._tcp' as 'Grind'")
             let listener = try NWListener(using: parameters, on: port)
             listener.service = NWListener.Service(name: "Grind", type: "_grind._tcp", txtRecord: txtRecord)
 
@@ -66,11 +68,12 @@ class NetworkService: ObservableObject {
                 }
             }
 
+            logger.info("   Starting listener on port \(self.port)...")
             listener.start(queue: queue)
-            logger.info("Network server started on port \(self.port)")
+            logger.info("✅ Network server started on port \(self.port)")
 
         } catch {
-            logger.error("Failed to start server: \(error.localizedDescription)")
+            logger.error("❌ Failed to start server: \(error.localizedDescription)")
         }
     }
 
@@ -94,26 +97,34 @@ class NetworkService: ObservableObject {
 
     private func handleListenerStateChange(_ state: NWListener.State) {
         switch state {
+        case .setup:
+            logger.info("🔧 Server setting up...")
+
+        case .waiting(let error):
+            logger.warning("⏳ Server waiting: \(error.localizedDescription)")
+
         case .ready:
             isRunning = true
-            logger.info("Server is ready to accept connections")
+            logger.info("✅ Server is ready to accept connections")
+            logger.info("   Listening on port: \(self.serverPort)")
+            logger.info("   Bonjour service: _grind._tcp")
 
         case .failed(let error):
-            logger.error("Server failed: \(error.localizedDescription)")
+            logger.error("❌ Server failed: \(error.localizedDescription)")
             isRunning = false
             stopServer()
 
         case .cancelled:
             isRunning = false
-            logger.info("Server cancelled")
+            logger.info("⚠️ Server cancelled")
 
-        default:
-            break
+        @unknown default:
+            logger.warning("Unknown listener state")
         }
     }
 
     private func handleNewConnection(_ connection: NWConnection) {
-        logger.info("New connection from \(connection.endpoint)")
+        logger.info("🔔 New connection from \(connection.endpoint)")
 
         connection.stateUpdateHandler = { [weak self] state in
             Task { @MainActor [weak self] in
@@ -121,14 +132,17 @@ class NetworkService: ObservableObject {
             }
         }
 
+        logger.info("   Starting connection...")
         connection.start(queue: queue)
         connections.append(connection)
 
         Task { @MainActor in
             connectedClients = connections.count
+            logger.info("   Total connected clients: \(connectedClients)")
         }
 
         // Send welcome message
+        logger.info("   Preparing to send initial data...")
         sendWelcomeMessage(to: connection)
 
         // Send historical stats
@@ -141,18 +155,24 @@ class NetworkService: ObservableObject {
     private func handleConnectionStateChange(_ connection: NWConnection, state: NWConnection.State) {
         switch state {
         case .ready:
-            logger.info("Connection ready: \(connection.endpoint)")
+            logger.info("✅ Connection ready: \(connection.endpoint)")
+
+        case .preparing:
+            logger.info("🔄 Connection preparing: \(connection.endpoint)")
+
+        case .waiting(let error):
+            logger.warning("⏳ Connection waiting: \(connection.endpoint) - \(error.localizedDescription)")
 
         case .failed(let error):
-            logger.error("Connection failed: \(error.localizedDescription)")
+            logger.error("❌ Connection failed: \(connection.endpoint) - \(error.localizedDescription)")
             removeConnection(connection)
 
         case .cancelled:
-            logger.info("Connection cancelled: \(connection.endpoint)")
+            logger.info("⚠️ Connection cancelled: \(connection.endpoint)")
             removeConnection(connection)
 
-        default:
-            break
+        @unknown default:
+            logger.warning("Unknown connection state for: \(connection.endpoint)")
         }
     }
 
@@ -168,6 +188,7 @@ class NetworkService: ObservableObject {
 
     private func sendWelcomeMessage(to connection: NWConnection) {
         let message = WelcomeMessage()
+        logger.info("📤 Sending welcome message to \(connection.endpoint)")
         sendMessage(message, to: connection)
     }
 
@@ -238,6 +259,10 @@ class NetworkService: ObservableObject {
                 }
 
                 let message = HistoricalStatsMessage(dailyStats: dailyStats, topApps: topApps)
+                logger.info("📤 Sending historical stats: \(dailyStats.count) days, \(topApps.count) apps")
+                for (index, stat) in dailyStats.prefix(5).enumerated() {
+                    logger.info("   Day \(index): \(stat.date) - \(stat.totalSeconds)s, \(stat.totalKeystrokes) keys")
+                }
                 sendMessage(message, to: connection)
 
             } catch {
@@ -268,9 +293,16 @@ class NetworkService: ObservableObject {
                 }
 
                 let message = TimeBlocksMessage(date: today, blocks: blockData)
+                logger.info("📤 Sending time blocks for \(today): \(blocks.count) blocks")
+                let activeBlocks = blockData.filter { $0.duration > 0 }
+                logger.info("   - \(activeBlocks.count) blocks with activity")
+                for (index, block) in activeBlocks.prefix(5).enumerated() {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "HH:mm"
+                    let timeStr = formatter.string(from: block.blockStart)
+                    logger.info("   Block \(index): \(timeStr) - \(block.appName ?? "Unknown") - \(block.duration)s")
+                }
                 sendMessage(message, to: connection)
-
-                logger.info("Sent \(blocks.count) time blocks for today")
 
             } catch {
                 logger.error("Failed to fetch today's time blocks: \(error.localizedDescription)")
@@ -281,12 +313,15 @@ class NetworkService: ObservableObject {
     func sendMessage<T: NetworkMessage>(_ message: T, to connection: NWConnection? = nil) {
         do {
             let data = try MessageEncoder.encode(message)
+            logger.info("📦 Encoded message type: \(message.type), size: \(data.count) bytes")
 
             if let connection = connection {
                 // Send to specific connection
+                logger.info("   → Sending to specific connection: \(connection.endpoint)")
                 sendData(data, to: connection)
             } else {
                 // Broadcast to all connections
+                logger.info("   → Broadcasting to \(connections.count) connections")
                 connections.forEach { conn in
                     sendData(data, to: conn)
                 }
@@ -299,7 +334,9 @@ class NetworkService: ObservableObject {
     private func sendData(_ data: Data, to connection: NWConnection) {
         connection.send(content: data, completion: .contentProcessed { error in
             if let error = error {
-                self.logger.error("Send error: \(error.localizedDescription)")
+                self.logger.error("❌ Send error to \(connection.endpoint): \(error.localizedDescription)")
+            } else {
+                self.logger.info("✅ Successfully sent \(data.count) bytes to \(connection.endpoint)")
             }
         })
     }
