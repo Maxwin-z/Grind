@@ -22,6 +22,7 @@ class NetworkClient: NSObject, ObservableObject {
     @Published var realtimeActivity: RealtimeActivityData?
     @Published var currentKPM: Int = 0  // Keys per minute
     @Published var selectedApps: [SelectedAppData] = []
+    @Published var latestKeystroke: KeystrokeData?  // Latest keystroke event
 
     // MARK: - Private Properties
 
@@ -202,7 +203,10 @@ class NetworkClient: NSObject, ObservableObject {
             // Calculate KPM from last minute's keystrokes
             currentKPM = data.keystrokesLastMinute
 
-        case .keystroke(_), .mouseEvent(_), .iterm2Sessions(_):
+        case .keystroke(let data):
+            latestKeystroke = data
+
+        case .mouseEvent(_), .iterm2Sessions(_):
             break
 
         case .selectedApps(let data):

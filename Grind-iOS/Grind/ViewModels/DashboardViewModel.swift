@@ -27,6 +27,10 @@ class DashboardViewModel: ObservableObject {
     @Published var currentApp: String = "—"
     @Published var isTyping: Bool = false
 
+    // Current keystroke display
+    @Published var currentKey: String = ""
+    @Published var currentModifiers: [String] = []
+
     // MARK: - Private Properties
 
     private let networkClient = NetworkClient.shared
@@ -87,6 +91,14 @@ class DashboardViewModel: ObservableObject {
             .compactMap { $0 }
             .sink { [weak self] realtimeData in
                 self?.processRealtimeActivity(realtimeData)
+            }
+            .store(in: &cancellables)
+
+        // Process keystroke events
+        networkClient.$latestKeystroke
+            .compactMap { $0 }
+            .sink { [weak self] keystrokeData in
+                self?.processKeystroke(keystrokeData)
             }
             .store(in: &cancellables)
     }
@@ -181,6 +193,11 @@ class DashboardViewModel: ObservableObject {
     private func processRealtimeActivity(_ data: RealtimeActivityData) {
         currentApp = data.activeApp.appName
         isTyping = data.isTyping
+    }
+
+    private func processKeystroke(_ data: KeystrokeData) {
+        currentKey = data.key
+        currentModifiers = data.modifiers
     }
 
     private func processTimeBlocks(_ data: TimeBlocksData) {

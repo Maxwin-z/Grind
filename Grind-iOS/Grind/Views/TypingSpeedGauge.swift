@@ -11,6 +11,8 @@ struct TypingSpeedGauge: View {
     let kpm: Int
     let currentApp: String
     let isTyping: Bool
+    let currentKey: String
+    let currentModifiers: [String]
 
     // Gauge ranges
     private let maxKPM = 300  // Maximum displayable KPM
@@ -73,6 +75,17 @@ struct TypingSpeedGauge: View {
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
                     .lineLimit(1)
+            }
+
+            // Current keystroke display
+            if !currentKey.isEmpty || !currentModifiers.isEmpty {
+                VStack(spacing: 8) {
+                    Text("Current Key")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    CurrentKeystrokeView(key: currentKey, modifiers: currentModifiers)
+                }
             }
 
             // Speed legend
@@ -138,9 +151,27 @@ struct TypingSpeedGauge: View {
 struct TypingSpeedGauge_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 20) {
-            TypingSpeedGauge(kpm: 85, currentApp: "Xcode", isTyping: true)
-            TypingSpeedGauge(kpm: 150, currentApp: "VS Code", isTyping: false)
-            TypingSpeedGauge(kpm: 0, currentApp: "—", isTyping: false)
+            TypingSpeedGauge(
+                kpm: 85,
+                currentApp: "Xcode",
+                isTyping: true,
+                currentKey: "A",
+                currentModifiers: []
+            )
+            TypingSpeedGauge(
+                kpm: 150,
+                currentApp: "VS Code",
+                isTyping: false,
+                currentKey: "C",
+                currentModifiers: ["Command"]
+            )
+            TypingSpeedGauge(
+                kpm: 0,
+                currentApp: "—",
+                isTyping: false,
+                currentKey: "",
+                currentModifiers: []
+            )
         }
         .padding()
     }

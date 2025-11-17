@@ -40,7 +40,9 @@ struct DashboardView: View {
                     TypingSpeedGauge(
                         kpm: viewModel.currentKPM,
                         currentApp: viewModel.currentApp,
-                        isTyping: viewModel.isTyping
+                        isTyping: viewModel.isTyping,
+                        currentKey: viewModel.currentKey,
+                        currentModifiers: viewModel.currentModifiers
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
