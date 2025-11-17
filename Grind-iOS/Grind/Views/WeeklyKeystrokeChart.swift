@@ -7,12 +7,14 @@
 
 import SwiftUI
 import Charts
-import UIKit
 
 struct WeeklyKeystrokeChart: View {
     let data: [DailyKeystrokeChartData]
     let appMetadata: [String: SelectedAppData]
     @State private var selectedDate: Date?
+    private var colorProvider: AppColorProvider {
+        AppColorProvider(appMetadata: appMetadata)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -79,9 +81,7 @@ struct WeeklyKeystrokeChart: View {
                 }
             }
         }
-        .chartLegend(position: .bottom, alignment: .leading) {
-            legendView
-        }
+        .chartLegend(.hidden)
         .frame(height: 220)
         .overlay(alignment: .topTrailing) {
             if let dateLabel = selectedDateLabel, !selectionRows.isEmpty {
@@ -90,22 +90,6 @@ struct WeeklyKeystrokeChart: View {
                     .padding(.trailing, 8)
             }
         }
-    }
-
-    private var legendView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 16) {
-                ForEach(legendEntries, id: \.appName) { entry in
-                    HStack(spacing: 6) {
-                        legendIcon(for: entry)
-                        Text(entry.appName)
-                            .font(.caption)
-                            .foregroundColor(entry.color)
-                    }
-                }
-            }
-        }
-        .frame(height: 24)
     }
 
     private var emptyStateView: some View {
@@ -188,7 +172,7 @@ struct WeeklyKeystrokeChart: View {
             .map { entry in
                 ChartSelectionSummaryRow(
                     id: entry.appName,
-                    color: colorForApp(entry.appName),
+                    color: colorProvider.color(for: entry.appName),
                     label: entry.appName,
                     value: formatKeystrokes(entry.count)
                 )
@@ -199,80 +183,8 @@ struct WeeklyKeystrokeChart: View {
         Self.dateLabelFormatter.string(from: date)
     }
 
-    private func colorForApp(_ appName: String) -> Color {
-        if let metadata = metadata(for: appName) {
-            return Color(hex: metadata.accentColorHex, fallback: fallbackColor(for: appName)).boostedForCharts()
-        }
-        return fallbackColor(for: appName).boostedForCharts()
-    }
-
-    private func metadata(for appName: String) -> SelectedAppData? {
-        if let direct = appMetadata[appName] {
-            return direct
-        }
-        return appMetadata.first { $0.key.caseInsensitiveCompare(appName) == .orderedSame }?.value
-    }
-
-    private func fallbackColor(for appName: String) -> Color {
-        let hash = abs(appName.hashValue)
-        let colors: [Color] = [
-            Color(red: 0.95, green: 0.35, blue: 0.2),
-            Color(red: 0.95, green: 0.55, blue: 0.15),
-            Color(red: 0.2, green: 0.6, blue: 0.95),
-            Color(red: 0.3, green: 0.75, blue: 0.4),
-            Color(red: 0.7, green: 0.4, blue: 0.9),
-            Color(red: 1.0, green: 0.2, blue: 0.5),
-            Color(red: 0.2, green: 0.85, blue: 0.7),
-            Color(red: 0.98, green: 0.6, blue: 0.2),
-            Color(red: 0.4, green: 0.5, blue: 0.95),
-            Color(red: 0.25, green: 0.9, blue: 0.5)
-        ]
-        return colors[hash % colors.count]
-    }
-
     private func styleForApp(_ appName: String) -> LinearGradient {
-        let color = colorForApp(appName)
-        let lighter = color.opacity(0.9)
-        let darker = color.opacity(0.55)
-        return LinearGradient(colors: [lighter, darker], startPoint: .top, endPoint: .bottom)
-    }
-
-    private var legendEntries: [LegendEntry] {
-        uniqueApps.map { appName in
-            LegendEntry(appName: appName, color: colorForApp(appName), icon: iconForApp(appName))
-        }
-    }
-
-    private func iconForApp(_ appName: String) -> UIImage? {
-        guard let data = metadata(for: appName)?.iconPNGData else {
-            return nil
-        }
-        return UIImage(data: data)
-    }
-
-    @ViewBuilder
-    private func legendIcon(for entry: LegendEntry) -> some View {
-        if let icon = entry.icon {
-            Image(uiImage: icon)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 18, height: 18)
-                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(entry.color.opacity(0.7), lineWidth: 1)
-                )
-        } else {
-            Circle()
-                .fill(entry.color)
-                .frame(width: 10, height: 10)
-        }
-    }
-
-    private struct LegendEntry {
-        let appName: String
-        let color: Color
-        let icon: UIImage?
+        colorProvider.gradient(for: appName)
     }
 
     private struct KeystrokeEntry: Identifiable {

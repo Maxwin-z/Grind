@@ -10,6 +10,18 @@ import SwiftUI
 struct DashboardView: View {
     @StateObject private var viewModel = DashboardViewModel()
     private let columnSpacing: CGFloat = 16
+    @State private var appLegendHeight: CGFloat = 0
+
+    private var legendAppNames: [String] {
+        let activityApps = viewModel.dailyActivityData.flatMap { day in
+            day.appActivities.map(\.appName)
+        }
+        let keystrokeApps = viewModel.dailyKeystrokeData.flatMap { day in
+            day.appKeystrokes.map(\.appName)
+        }
+        let combined = Set(activityApps + keystrokeApps)
+        return combined.sorted()
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -25,28 +37,55 @@ struct DashboardView: View {
                         totalWidth: geometry.size.width,
                         spacing: columnSpacing
                     )
+                    let upperSectionHeight = max(geometry.size.height - layout.bottomHeight - columnSpacing, 0)
+                    let chartsAvailableHeight = max(upperSectionHeight - appLegendHeight - columnSpacing, 0)
 
                     HStack(spacing: columnSpacing) {
-                        // Column 1 (adaptive width): Weekly Activity + Keystrokes
-                        VStack(spacing: 16) {
-                            WeeklyActivityChart(
-                                data: viewModel.dailyActivityData,
-                                appMetadata: viewModel.appSelectionMetadata
-                            )
-                            .frame(maxHeight: .infinity)
+                        // Column 1 (adaptive width): Apps + Weekly charts
+                        VStack(spacing: 0) {
+                            VStack(spacing: columnSpacing) {
+                                AppLegendListView(
+                                    appNames: legendAppNames,
+                                    appMetadata: viewModel.appSelectionMetadata
+                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    GeometryReader { proxy in
+                                        Color.clear.preference(
+                                            key: AppLegendHeightPreferenceKey.self,
+                                            value: proxy.size.height
+                                        )
+                                    }
+                                )
 
-                            WeeklyKeystrokeChart(
-                                data: viewModel.dailyKeystrokeData,
-                                appMetadata: viewModel.appSelectionMetadata
+                            ChartColumnView(
+                                totalHeight: chartsAvailableHeight,
+                                spacing: columnSpacing,
+                                activityChart: {
+                                    WeeklyActivityChart(
+                                        data: viewModel.dailyActivityData,
+                                        appMetadata: viewModel.appSelectionMetadata
+                                    )
+                                },
+                                keystrokeChart: {
+                                    WeeklyKeystrokeChart(
+                                        data: viewModel.dailyKeystrokeData,
+                                        appMetadata: viewModel.appSelectionMetadata
+                                    )
+                                }
                             )
-                            .frame(maxHeight: .infinity)
+                            }
+                            .frame(height: upperSectionHeight, alignment: .top)
+
+                            Spacer(minLength: 0)
                         }
-                        .frame(width: layout.leftWidth, height: geometry.size.height)
+                        .frame(width: layout.leftWidth, height: geometry.size.height, alignment: .top)
 
                         // Column 2: prioritize typing + keyboard width
                         VStack(spacing: columnSpacing) {
                             ITerm2TerminalView(sessions: viewModel.iterm2Sessions)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: upperSectionHeight)
                                 .layoutPriority(1)
 
                             HStack(spacing: columnSpacing) {
@@ -108,6 +147,9 @@ struct DashboardView: View {
         }
         .background(Color(.systemGroupedBackground))
         .ignoresSafeArea(.all, edges: .all)
+        .onPreferenceChange(AppLegendHeightPreferenceKey.self) { newHeight in
+            appLegendHeight = newHeight
+        }
     }
 }
 
@@ -154,6 +196,37 @@ private func calculateDashboardLayout(totalWidth: CGFloat, spacing: CGFloat) -> 
         bottomHeight: bottomHeight
     )
 }
+
+private struct AppLegendHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct ChartColumnView<ActivityChart: View, KeystrokeChart: View>: View {
+    let totalHeight: CGFloat
+    let spacing: CGFloat
+    let activityChart: () -> ActivityChart
+    let keystrokeChart: () -> KeystrokeChart
+
+    var body: some View {
+        GeometryReader { proxy in
+            let availableHeight = max(totalHeight, 0)
+            let chartHeight = max((availableHeight - spacing) / 2, 120)
+
+            VStack(spacing: spacing) {
+                activityChart()
+                    .frame(height: chartHeight)
+                keystrokeChart()
+                    .frame(height: chartHeight)
+            }
+        }
+        .frame(height: totalHeight)
+    }
+}
+
 
 // MARK: - iTerm2 Terminal View
 
