@@ -19,7 +19,7 @@ struct KeyboardVisualizerView: View {
     private let baseKeySize: CGFloat = 28  // Base size for 1.0 width key
     private let cornerRadius: CGFloat = 4
     private let shadowRadius: CGFloat = 2
-    private let keyHighlightDuration: TimeInterval = 0.35
+    private let keyHighlightDuration: TimeInterval = 3.0
 
     var body: some View {
         let _ = print("🎨 KeyboardVisualizer body re-render - currentKey: '\(currentKey)', modifiers: \(currentModifiers)")
@@ -108,9 +108,15 @@ struct KeyboardVisualizerView: View {
 
     private func animateKeyPress(keyCode: String) {
         print("   🎬 Animating key: '\(keyCode)'")
-        // Set highlight fully on so we can visually verify the press
         animatingKeys[keyCode] = 1.0
         print("      Highlight opacity set to \(animatingKeys[keyCode] ?? 0)")
+
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: keyHighlightDuration)) {
+                animatingKeys[keyCode] = 0.0
+                print("      Target opacity: 0.0 over \(keyHighlightDuration)s")
+            }
+        }
 
         scheduleCleanup(for: keyCode)
     }
@@ -189,7 +195,7 @@ struct KeyboardVisualizerView: View {
 
         let workItem = DispatchWorkItem {
             pressedKeys.remove(keyCode)
-            animatingKeys[keyCode] = 0.0
+            animatingKeys.removeValue(forKey: keyCode)
             cleanupTasks.removeValue(forKey: keyCode)
             print("      Animation complete for '\(keyCode)'")
         }
@@ -231,12 +237,10 @@ struct KeyCapView: View {
                 .shadow(color: Color.black.opacity(0.15), radius: shadowRadius, x: 0, y: 1)
 
             // Highlight overlay (animated)
-            if opacity > 0 {
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(highlightColor)
-                    .frame(width: keyWidth, height: keyHeight)
-                    .opacity(opacity)
-            }
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(highlightColor)
+                .frame(width: keyWidth, height: keyHeight)
+                .opacity(opacity)
 
             // Key label
             Text(key.label)
