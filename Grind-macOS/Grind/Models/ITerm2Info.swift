@@ -68,7 +68,7 @@ struct ITerm2Session: Codable, Identifiable {
     }
 
     var lastScreenLines: [String] {
-        Array(screenLines.suffix(10))
+        Array(screenLines.suffix(100))
     }
 }
 

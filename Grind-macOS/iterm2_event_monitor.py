@@ -32,11 +32,9 @@ class ITerm2EventMonitor:
             lines = []
             cursor_position = None
             try:
-                # Get ALL visible lines from the screen (not just last 20)
+                # Capture the last 100 lines from the screen for client display
                 num_lines = screen_contents.number_of_lines
-                # Get visible window height to capture all visible content
-                # For now, get last 50 lines to capture more context
-                start_line = max(0, num_lines - 50)
+                start_line = max(0, num_lines - 100)
                 for i in range(start_line, num_lines):
                     line = screen_contents.line(i)
                     lines.append(line.string)
@@ -157,11 +155,10 @@ class ITerm2EventMonitor:
                     try:
                         screen_contents = await current_active_session.async_get_screen_contents()
 
-                        # Get ALL visible lines to detect changes (not just last 5!)
+                        # Get the last 100 lines to detect changes and share with clients
                         lines = []
                         num_lines = screen_contents.number_of_lines
-                        # Capture last 50 lines to detect all visible changes
-                        start_line = max(0, num_lines - 50)
+                        start_line = max(0, num_lines - 100)
                         for i in range(start_line, num_lines):
                             line = screen_contents.line(i)
                             lines.append(line.string)

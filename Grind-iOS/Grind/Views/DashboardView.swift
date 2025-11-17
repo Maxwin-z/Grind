@@ -46,8 +46,8 @@ struct DashboardView: View {
                         // Column 2: prioritize typing + keyboard width
                         VStack(spacing: columnSpacing) {
                             ITerm2TerminalView(sessions: viewModel.iterm2Sessions)
-                                .frame(maxWidth: .infinity)
-                                .frame(maxHeight: .infinity, alignment: .topLeading)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .layoutPriority(1)
 
                             HStack(spacing: columnSpacing) {
                                 TypingSpeedCompactView(
@@ -166,7 +166,7 @@ struct ITerm2TerminalView: View {
         }
 
         let lines = session.screenLines ?? []
-        let maxLines = 24
+        let maxLines = 100
         if lines.count > maxLines {
             return Array(lines.suffix(maxLines))
         }
@@ -187,7 +187,7 @@ struct ITerm2TerminalView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemBackground))
+                .fill(Color(.systemBackground))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
