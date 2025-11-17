@@ -9,55 +9,73 @@ import SwiftUI
 
 struct DashboardView: View {
     @StateObject private var viewModel = DashboardViewModel()
+    private let columnSpacing: CGFloat = 16
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             // Main content - Full screen utilization
-            VStack(spacing: 16) {
+            VStack(spacing: columnSpacing) {
                 // Today's Activity Timeline - Full width at top
                 TodayTimelineView(timeBlocks: viewModel.todayTimeBlocks)
                     .frame(height: 200)
 
-                // Three columns below
-                HStack(spacing: 16) {
-                    // Column 1: Weekly Activity + Keystrokes
-                    VStack(spacing: 16) {
-                        WeeklyActivityChart(
-                            data: viewModel.dailyActivityData,
-                            appMetadata: viewModel.appSelectionMetadata
-                        )
-                        .frame(maxHeight: .infinity)
-
-                        WeeklyKeystrokeChart(
-                            data: viewModel.dailyKeystrokeData,
-                            appMetadata: viewModel.appSelectionMetadata
-                        )
-                        .frame(maxHeight: .infinity)
-                    }
-                    .frame(maxWidth: .infinity)
-
-                    // Column 2: Typing Speed
-                    TypingSpeedGauge(
-                        kpm: viewModel.currentKPM,
-                        currentApp: viewModel.currentApp,
-                        isTyping: viewModel.isTyping,
-                        currentKey: viewModel.currentKey,
-                        currentModifiers: viewModel.currentModifiers,
-                        keystrokeSequence: viewModel.keystrokeSequence
+                // Two columns below with 2:3 ratio
+                GeometryReader { geometry in
+                    let layout = calculateDashboardLayout(
+                        totalWidth: geometry.size.width,
+                        spacing: columnSpacing
                     )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    // Column 3: Reserved for future use
-                    VStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemGray6))
-                            .overlay(
-                                Text("Reserved")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                    HStack(spacing: columnSpacing) {
+                        // Column 1 (adaptive width): Weekly Activity + Keystrokes
+                        VStack(spacing: 16) {
+                            WeeklyActivityChart(
+                                data: viewModel.dailyActivityData,
+                                appMetadata: viewModel.appSelectionMetadata
                             )
+                            .frame(maxHeight: .infinity)
+
+                            WeeklyKeystrokeChart(
+                                data: viewModel.dailyKeystrokeData,
+                                appMetadata: viewModel.appSelectionMetadata
+                            )
+                            .frame(maxHeight: .infinity)
+                        }
+                        .frame(width: layout.leftWidth, height: geometry.size.height)
+
+                        // Column 2: prioritize typing + keyboard width
+                        VStack(spacing: columnSpacing) {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.systemGray6))
+                                .frame(maxWidth: .infinity)
+                                .frame(maxHeight: .infinity)
+
+                            HStack(spacing: columnSpacing) {
+                                TypingSpeedCompactView(
+                                    kpm: viewModel.currentKPM
+                                )
+                                .frame(width: layout.typingWidth, alignment: .center)
+
+                                VStack {
+                                    KeyboardVisualizerView(
+                                        currentKey: viewModel.currentKey,
+                                        currentModifiers: viewModel.currentModifiers,
+                                        keystrokeSequence: viewModel.keystrokeSequence
+                                    )
+                                    .frame(maxWidth: .infinity)
+                                    .padding(8)
+                                }
+                                .frame(width: layout.keyboardWidth)
+                                .background(Color(.systemBackground))
+                                .cornerRadius(12)
+                                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                .layoutPriority(1)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(width: layout.rightWidth, height: geometry.size.height)
                     }
-                    .frame(maxWidth: .infinity)
                 }
                 .frame(maxHeight: .infinity)
             }
@@ -90,6 +108,43 @@ struct DashboardView: View {
         .background(Color(.systemGroupedBackground))
         .ignoresSafeArea(.all, edges: .all)
     }
+}
+
+// MARK: - Layout Helpers
+
+private struct DashboardColumnLayout {
+    let leftWidth: CGFloat
+    let rightWidth: CGFloat
+    let typingWidth: CGFloat
+    let keyboardWidth: CGFloat
+}
+
+private func calculateDashboardLayout(totalWidth: CGFloat, spacing: CGFloat) -> DashboardColumnLayout {
+    let minimumKeyboardWidth: CGFloat = 520
+    let minimumTypingWidth: CGFloat = 200
+    let minimumRightColumnWidth = minimumKeyboardWidth + minimumTypingWidth + spacing
+    let desiredRightWidth = max(totalWidth * 0.55, minimumRightColumnWidth)
+    let rightWidth = min(desiredRightWidth, totalWidth)
+    let leftWidth = max(totalWidth - rightWidth - spacing, 0)
+    let safeRightWidth = max(rightWidth, 0)
+    let typingRatio: CGFloat = 0.35
+    var typingWidth = max(safeRightWidth * typingRatio, minimumTypingWidth)
+    var keyboardWidth = safeRightWidth - typingWidth - spacing
+
+    if keyboardWidth < minimumKeyboardWidth {
+        keyboardWidth = min(
+            max(minimumKeyboardWidth, 0),
+            max(safeRightWidth - spacing, 0)
+        )
+        typingWidth = max(safeRightWidth - keyboardWidth - spacing, 0)
+    }
+
+    return DashboardColumnLayout(
+        leftWidth: leftWidth,
+        rightWidth: rightWidth,
+        typingWidth: typingWidth,
+        keyboardWidth: keyboardWidth
+    )
 }
 
 #if DEBUG
