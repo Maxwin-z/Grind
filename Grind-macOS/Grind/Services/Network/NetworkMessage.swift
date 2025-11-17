@@ -48,11 +48,13 @@ struct HistoricalStatsMessage: NetworkMessage {
     let timestamp: Date
     let dailyStats: [DailyStatsData]
     let topApps: [AppStatsData]
+    let dailyAppBreakdown: [DailyAppBreakdownData]
 
-    init(dailyStats: [DailyStatsData], topApps: [AppStatsData]) {
+    init(dailyStats: [DailyStatsData], topApps: [AppStatsData], dailyAppBreakdown: [DailyAppBreakdownData]) {
         self.timestamp = Date()
         self.dailyStats = dailyStats
         self.topApps = topApps
+        self.dailyAppBreakdown = dailyAppBreakdown
     }
 }
 
@@ -74,6 +76,18 @@ struct AppStatsData: Codable {
     let mouseMovements: Int
     let mouseClicks: Int
     let lastActive: Date?
+}
+
+struct DailyAppBreakdownData: Codable {
+    let date: String
+    let apps: [DailyAppMetricsData]
+}
+
+struct DailyAppMetricsData: Codable {
+    let appName: String
+    let duration: Int
+    let keystrokes: Int
+    let category: String
 }
 
 /// Time blocks message (5-minute blocks for today)

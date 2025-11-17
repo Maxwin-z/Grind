@@ -87,42 +87,60 @@ class DashboardViewModel: ObservableObject {
         print("   - Received \(data.dailyStats.count) daily stats")
         print("   - Received \(data.topApps.count) top apps")
 
-        // Process last 7 days for activity chart
+        // Process last 7 days for charts
         let last7Days = getLast7Days()
         let recentStats = data.dailyStats
             .sorted { $0.date < $1.date } // ensure chronological order
             .suffix(7)
-        var activityByDate: [String: [DailyActivityByApp]] = [:]
 
-        // Group top apps data by date (we need to request this data from macOS)
-        // For now, use dailyStats as placeholder
+        // Build per-day breakdown lookup from payload (if available)
+        var perDayActivity: [String: [DailyActivityByApp]] = [:]
+        var perDayKeystrokes: [String: [DailyKeystrokeByApp]] = [:]
+
+        if let breakdown = data.dailyAppBreakdown {
+            for dayBreakdown in breakdown {
+                let sortedActivityApps = dayBreakdown.apps.sorted { $0.duration > $1.duration }
+                let activityApps = sortedActivityApps.map { metric in
+                    DailyActivityByApp(appName: metric.appName, duration: metric.duration)
+                }
+                let sortedKeystrokeApps = dayBreakdown.apps.sorted { $0.keystrokes > $1.keystrokes }
+                let keystrokeApps = sortedKeystrokeApps.map { metric in
+                    DailyKeystrokeByApp(appName: metric.appName, keystrokes: metric.keystrokes)
+                }
+
+                if !activityApps.isEmpty {
+                    perDayActivity[dayBreakdown.date] = activityApps
+                }
+                if !keystrokeApps.isEmpty {
+                    perDayKeystrokes[dayBreakdown.date] = keystrokeApps
+                }
+            }
+        }
+
+        // Fallback to totals if breakdown missing so the charts never go empty
         for dayStats in recentStats {
             let date = dayStats.date
             print("   - Day \(date): \(dayStats.totalSeconds)s, \(dayStats.totalKeystrokes) keys")
-            // This is a simplified version - in reality we need per-app breakdown
-            activityByDate[date] = [
-                DailyActivityByApp(appName: "Total", duration: dayStats.totalSeconds)
-            ]
+            if perDayActivity[date]?.isEmpty ?? true {
+                perDayActivity[date] = [
+                    DailyActivityByApp(appName: "Total", duration: dayStats.totalSeconds)
+                ]
+            }
+            if perDayKeystrokes[date]?.isEmpty ?? true {
+                perDayKeystrokes[date] = [
+                    DailyKeystrokeByApp(appName: "Total", keystrokes: dayStats.totalKeystrokes)
+                ]
+            }
         }
 
         // Convert to chart data
         dailyActivityData = last7Days.map { dateStr in
-            let apps = activityByDate[dateStr] ?? []
+            let apps = perDayActivity[dateStr] ?? []
             return DailyActivityChartData(date: dateStr, appActivities: apps)
         }
 
-        // Process keystroke data similarly
-        var keystrokesByDate: [String: [DailyKeystrokeByApp]] = [:]
-
-        for dayStats in recentStats {
-            let date = dayStats.date
-            keystrokesByDate[date] = [
-                DailyKeystrokeByApp(appName: "Total", keystrokes: dayStats.totalKeystrokes)
-            ]
-        }
-
         dailyKeystrokeData = last7Days.map { dateStr in
-            let apps = keystrokesByDate[dateStr] ?? []
+            let apps = perDayKeystrokes[dateStr] ?? []
             return DailyKeystrokeChartData(date: dateStr, appKeystrokes: apps)
         }
 

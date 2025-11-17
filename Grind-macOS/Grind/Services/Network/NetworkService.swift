@@ -215,6 +215,7 @@ class NetworkService: ObservableObject {
 
                 // Fetch daily stats for last 30 days
                 var dailyStats: [DailyStatsData] = []
+                var dailyAppBreakdown: [DailyAppBreakdownData] = []
 
                 for dayOffset in stride(from: maxHistoricalDays - 1, through: 0, by: -1) {
                     let date = calendar.date(byAdding: .day, value: -dayOffset, to: now)!
@@ -238,6 +239,21 @@ class NetworkService: ObservableObject {
                         totalMouseMovements: totalMouseMovements,
                         totalMouseClicks: totalMouseClicks,
                         appCount: stats.count
+                    ))
+
+                    let appMetrics = stats.map { stat in
+                        DailyAppMetricsData(
+                            appName: stat.appName,
+                            duration: stat.totalDuration,
+                            keystrokes: stat.keystrokeCount,
+                            category: stat.category
+                        )
+                    }
+                    .sorted { $0.duration > $1.duration }
+
+                    dailyAppBreakdown.append(DailyAppBreakdownData(
+                        date: dateString,
+                        apps: appMetrics
                     ))
                 }
 
@@ -266,7 +282,11 @@ class NetworkService: ObservableObject {
                     )
                 }
 
-                let message = HistoricalStatsMessage(dailyStats: dailyStats, topApps: topApps)
+                let message = HistoricalStatsMessage(
+                    dailyStats: dailyStats,
+                    topApps: topApps,
+                    dailyAppBreakdown: dailyAppBreakdown
+                )
                 logger.info("📤 Sending historical stats: \(dailyStats.count) days, \(topApps.count) apps")
                 for (index, stat) in dailyStats.prefix(5).enumerated() {
                     logger.info("   Day \(index): \(stat.date) - \(stat.totalSeconds)s, \(stat.totalKeystrokes) keys")

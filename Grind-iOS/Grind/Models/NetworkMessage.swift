@@ -151,6 +151,7 @@ struct WelcomeData: Codable {
 struct HistoricalStatsData: Codable {
     let dailyStats: [DailyStatsData]
     let topApps: [AppStatsData]
+    let dailyAppBreakdown: [DailyAppBreakdownData]?
 }
 
 struct DailyStatsData: Codable, Identifiable {
@@ -173,6 +174,20 @@ struct AppStatsData: Codable, Identifiable {
     let mouseMovements: Int
     let mouseClicks: Int
     let lastActive: Date?
+}
+
+struct DailyAppBreakdownData: Codable, Identifiable {
+    var id: String { date }
+    let date: String
+    let apps: [DailyAppMetricsData]
+}
+
+struct DailyAppMetricsData: Codable, Identifiable {
+    let id = UUID()
+    let appName: String
+    let duration: Int
+    let keystrokes: Int
+    let category: String
 }
 
 struct TimeBlocksData: Codable {
