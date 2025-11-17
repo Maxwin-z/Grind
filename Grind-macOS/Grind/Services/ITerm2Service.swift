@@ -190,7 +190,8 @@ class ITerm2Service: ObservableObject {
                         isActive: session.isActive,
                         windowIndex: windowIndex,
                         tabIndex: tabIndex,
-                        paneIndex: paneIndex
+                        paneIndex: paneIndex,
+                        screenLines: session.lastScreenLines
                     )
                     sessions.append(sessionData)
                     paneIndex += 1

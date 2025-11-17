@@ -196,6 +196,7 @@ struct ITerm2SessionData: Codable {
     let windowIndex: Int
     let tabIndex: Int
     let paneIndex: Int
+    let screenLines: [String]?
 }
 
 /// Heartbeat message (periodic keep-alive and activity summary)

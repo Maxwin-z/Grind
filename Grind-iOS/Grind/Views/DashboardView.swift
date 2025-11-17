@@ -45,10 +45,9 @@ struct DashboardView: View {
 
                         // Column 2: prioritize typing + keyboard width
                         VStack(spacing: columnSpacing) {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(.systemGray6))
+                            ITerm2TerminalView(sessions: viewModel.iterm2Sessions)
                                 .frame(maxWidth: .infinity)
-                                .frame(maxHeight: .infinity)
+                                .frame(maxHeight: .infinity, alignment: .topLeading)
 
                             HStack(spacing: columnSpacing) {
                                 TypingSpeedCompactView(
@@ -154,6 +153,101 @@ private func calculateDashboardLayout(totalWidth: CGFloat, spacing: CGFloat) -> 
         keyboardWidth: keyboardWidth,
         bottomHeight: bottomHeight
     )
+}
+
+// MARK: - iTerm2 Terminal View
+
+struct ITerm2TerminalView: View {
+    let sessions: [ITerm2Session]
+
+    private var renderedLines: [String] {
+        guard let session = sessions.first(where: { $0.isActive }) ?? sessions.first else {
+            return []
+        }
+
+        let lines = session.screenLines ?? []
+        let maxLines = 24
+        if lines.count > maxLines {
+            return Array(lines.suffix(maxLines))
+        }
+        return lines
+    }
+
+    var body: some View {
+        ZStack {
+            if renderedLines.isEmpty {
+                placeholder(message: "Waiting for terminal output…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                TerminalOutputArea(lines: renderedLines)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.black.opacity(0.05))
+        )
+    }
+
+    private func placeholder(message: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: "waveform.path.ecg")
+                .foregroundColor(.secondary)
+            Text(message)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.tertiarySystemBackground))
+        )
+    }
+}
+
+private struct TerminalOutputArea: View {
+    let lines: [String]
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: true) {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        Text(line.isEmpty ? " " : line)
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundColor(Color(red: 0.5, green: 1.0, blue: 0.6))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id(index)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .onAppear {
+                scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: lines) { _ in
+                scrollToBottom(proxy: proxy)
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.black.opacity(0.85))
+        )
+    }
+
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        guard let lastIndex = lines.indices.last else { return }
+        DispatchQueue.main.async {
+            proxy.scrollTo(lastIndex, anchor: .bottom)
+        }
+    }
 }
 
 #if DEBUG

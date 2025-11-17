@@ -31,6 +31,7 @@ class DashboardViewModel: ObservableObject {
     @Published var currentKey: String = ""
     @Published var currentModifiers: [String] = []
     @Published var keystrokeSequence: UInt64 = 0
+    @Published var iterm2Sessions: [ITerm2Session] = []
 
     // MARK: - Private Properties
 
@@ -116,6 +117,35 @@ class DashboardViewModel: ObservableObject {
                 self?.processKeystroke(keystrokeData)
             }
             .store(in: &cancellables)
+
+        networkClient.$iterm2Sessions
+            .sink { [weak self] sessions in
+                self?.processITerm2Sessions(sessions)
+            }
+            .store(in: &cancellables)
+    }
+
+    private func processITerm2Sessions(_ sessions: [ITerm2Session]) {
+        guard !sessions.isEmpty else {
+            iterm2Sessions = []
+            return
+        }
+
+        iterm2Sessions = sessions.sorted { lhs, rhs in
+            if lhs.isActive != rhs.isActive {
+                return lhs.isActive && !rhs.isActive
+            }
+
+            if lhs.windowIndex != rhs.windowIndex {
+                return lhs.windowIndex < rhs.windowIndex
+            }
+
+            if lhs.tabIndex != rhs.tabIndex {
+                return lhs.tabIndex < rhs.tabIndex
+            }
+
+            return lhs.paneIndex < rhs.paneIndex
+        }
     }
 
     private func connectToServer() {

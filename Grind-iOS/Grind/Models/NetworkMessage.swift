@@ -282,7 +282,8 @@ struct ITerm2SessionsData: Codable {
     let sessions: [ITerm2Session]
 }
 
-struct ITerm2Session: Codable {
+struct ITerm2Session: Codable, Identifiable {
+    var id: String { sessionId }
     let sessionId: String
     let name: String
     let currentDirectory: String?
@@ -291,6 +292,7 @@ struct ITerm2Session: Codable {
     let windowIndex: Int
     let tabIndex: Int
     let paneIndex: Int
+    let screenLines: [String]?
 }
 
 struct ErrorData: Codable {

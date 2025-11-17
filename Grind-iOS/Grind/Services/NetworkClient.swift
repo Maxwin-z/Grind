@@ -24,6 +24,7 @@ class NetworkClient: NSObject, ObservableObject {
     @Published var selectedApps: [SelectedAppData] = []
     @Published var latestKeystroke: KeystrokeData?  // Latest keystroke event
     @Published var dailyStatsUpdate: DailyStatsUpdateData?
+    @Published var iterm2Sessions: [ITerm2Session] = []
 
     // MARK: - Private Properties
 
@@ -210,8 +211,11 @@ class NetworkClient: NSObject, ObservableObject {
         case .keystroke(let data):
             latestKeystroke = data
 
-        case .mouseEvent(_), .iterm2Sessions(_):
+        case .mouseEvent(_):
             break
+
+        case .iterm2Sessions(let data):
+            iterm2Sessions = data.sessions
 
         case .selectedApps(let data):
             selectedApps = data.apps
