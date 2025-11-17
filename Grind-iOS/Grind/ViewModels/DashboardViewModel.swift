@@ -39,9 +39,19 @@ class DashboardViewModel: ObservableObject {
     private var selectedAppNames: Set<String> = []
     private var didReceiveSelectionSnapshot = false
 
+    // KPM calculation
+    private var keystrokeTimestamps: [Date] = []
+    private let kpmCalculationWindow: TimeInterval = 60.0  // 1 minute window
+    private var kpmUpdateTimer: Timer?
+
     init() {
         setupBindings()
         connectToServer()
+        startKPMTimer()
+    }
+
+    deinit {
+        kpmUpdateTimer?.invalidate()
     }
 
     // MARK: - Setup
@@ -53,10 +63,6 @@ class DashboardViewModel: ObservableObject {
 
         networkClient.$connectionStatus
             .assign(to: &$connectionStatus)
-
-        // Bind KPM
-        networkClient.$currentKPM
-            .assign(to: &$currentKPM)
 
         // Process historical stats
         networkClient.$historicalStats
@@ -198,6 +204,17 @@ class DashboardViewModel: ObservableObject {
     private func processKeystroke(_ data: KeystrokeData) {
         currentKey = data.key
         currentModifiers = data.modifiers
+
+        // Record keystroke timestamp for KPM calculation
+        let now = Date()
+        keystrokeTimestamps.append(now)
+
+        // Remove timestamps older than 1 minute
+        let cutoffTime = now.addingTimeInterval(-kpmCalculationWindow)
+        keystrokeTimestamps.removeAll { $0 < cutoffTime }
+
+        // Update KPM immediately
+        updateKPM()
     }
 
     private func processTimeBlocks(_ data: TimeBlocksData) {
@@ -239,6 +256,31 @@ class DashboardViewModel: ObservableObject {
         networkClient.startServiceDiscovery()
         didReceiveSelectionSnapshot = false
         selectedAppNames = []
+    }
+
+    // MARK: - KPM Calculation
+
+    private func startKPMTimer() {
+        // Update KPM every second to keep it fresh
+        kpmUpdateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.updateKPM()
+        }
+    }
+
+    private func updateKPM() {
+        let now = Date()
+        let cutoffTime = now.addingTimeInterval(-kpmCalculationWindow)
+
+        // Remove old timestamps
+        keystrokeTimestamps.removeAll { $0 < cutoffTime }
+
+        // Calculate KPM based on keystrokes in the last minute
+        currentKPM = keystrokeTimestamps.count
+
+        // If no recent keystrokes, set to 0
+        if keystrokeTimestamps.isEmpty {
+            currentKPM = 0
+        }
     }
 
     private func shouldIncludeApp(named appName: String, filterNames: Set<String>?) -> Bool {
