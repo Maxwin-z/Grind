@@ -8,11 +8,14 @@
 import SwiftUI
 
 struct TypingSpeedCompactView: View {
+    static let preferredHeight: CGFloat = 220
+
     let kpm: Int
     private let maxKPM = 300
 
     var body: some View {
         VStack(spacing: 0) {
+            Spacer(minLength: 0)
             ZStack {
                 Circle()
                     .stroke(Color.gray.opacity(0.2), lineWidth: 18)
@@ -32,9 +35,9 @@ struct TypingSpeedCompactView: View {
                     .font(.system(size: 52, weight: .bold, design: .rounded))
                     .foregroundColor(.primary)
             }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(12)

@@ -55,6 +55,7 @@ struct DashboardView: View {
                                     kpm: viewModel.currentKPM
                                 )
                                 .frame(width: layout.typingWidth, alignment: .center)
+                                .frame(height: layout.bottomHeight)
 
                                 VStack {
                                     KeyboardVisualizerView(
@@ -62,17 +63,18 @@ struct DashboardView: View {
                                         currentModifiers: viewModel.currentModifiers,
                                         keystrokeSequence: viewModel.keystrokeSequence
                                     )
-                                    .frame(maxWidth: .infinity)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     .padding(8)
                                 }
                                 .frame(width: layout.keyboardWidth)
+                                .frame(height: layout.bottomHeight)
                                 .background(Color(.systemBackground))
                                 .cornerRadius(12)
                                 .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                                 .layoutPriority(1)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(height: layout.bottomHeight)
                         }
                         .frame(width: layout.rightWidth, height: geometry.size.height)
                     }
@@ -117,6 +119,7 @@ private struct DashboardColumnLayout {
     let rightWidth: CGFloat
     let typingWidth: CGFloat
     let keyboardWidth: CGFloat
+    let bottomHeight: CGFloat
 }
 
 private func calculateDashboardLayout(totalWidth: CGFloat, spacing: CGFloat) -> DashboardColumnLayout {
@@ -139,11 +142,17 @@ private func calculateDashboardLayout(totalWidth: CGFloat, spacing: CGFloat) -> 
         typingWidth = max(safeRightWidth - keyboardWidth - spacing, 0)
     }
 
+    let bottomHeight = max(
+        TypingSpeedCompactView.preferredHeight,
+        KeyboardVisualizerView.preferredHeight
+    )
+
     return DashboardColumnLayout(
         leftWidth: leftWidth,
         rightWidth: rightWidth,
         typingWidth: typingWidth,
-        keyboardWidth: keyboardWidth
+        keyboardWidth: keyboardWidth,
+        bottomHeight: bottomHeight
     )
 }
 

@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct KeyboardVisualizerView: View {
+    static let preferredHeight: CGFloat = 200
+
     let currentKey: String
     let currentModifiers: [String]
     let keystrokeSequence: UInt64
