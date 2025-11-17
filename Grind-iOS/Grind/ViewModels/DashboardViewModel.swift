@@ -89,11 +89,14 @@ class DashboardViewModel: ObservableObject {
 
         // Process last 7 days for activity chart
         let last7Days = getLast7Days()
+        let recentStats = data.dailyStats
+            .sorted { $0.date < $1.date } // ensure chronological order
+            .suffix(7)
         var activityByDate: [String: [DailyActivityByApp]] = [:]
 
         // Group top apps data by date (we need to request this data from macOS)
         // For now, use dailyStats as placeholder
-        for dayStats in data.dailyStats.suffix(7) {
+        for dayStats in recentStats {
             let date = dayStats.date
             print("   - Day \(date): \(dayStats.totalSeconds)s, \(dayStats.totalKeystrokes) keys")
             // This is a simplified version - in reality we need per-app breakdown
@@ -111,7 +114,7 @@ class DashboardViewModel: ObservableObject {
         // Process keystroke data similarly
         var keystrokesByDate: [String: [DailyKeystrokeByApp]] = [:]
 
-        for dayStats in data.dailyStats.suffix(7) {
+        for dayStats in recentStats {
             let date = dayStats.date
             keystrokesByDate[date] = [
                 DailyKeystrokeByApp(appName: "Total", keystrokes: dayStats.totalKeystrokes)

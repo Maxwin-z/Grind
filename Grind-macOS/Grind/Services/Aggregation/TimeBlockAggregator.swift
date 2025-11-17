@@ -97,17 +97,44 @@ class TimeBlockAggregator {
 
     // MARK: - Daily Aggregation
 
-    /// Aggregate time blocks into daily stats
+    /// Aggregate time blocks into daily stats asynchronously
     /// Should run at end of day or on-demand
     func aggregateToDailyStats(for date: Date) {
         DispatchQueue.global(qos: .background).async { [weak self] in
+            guard let self = self else { return }
             do {
-                try self?.performDailyAggregation(for: date)
+                try self.performDailyAggregation(for: date)
                 print("✅ Daily stats aggregated for \(DailyStats.dateString(from: date))")
             } catch {
                 print("❌ Error aggregating daily stats: \(error)")
             }
         }
+    }
+
+    /// Aggregate time blocks into daily stats synchronously
+    func aggregateToDailyStatsSync(for date: Date) throws {
+        try performDailyAggregation(for: date)
+        print("✅ Daily stats aggregated for \(DailyStats.dateString(from: date))")
+    }
+
+    /// Ensure a given date has daily stats rows by aggregating if needed
+    func ensureDailyStats(for date: Date) throws {
+        let dateString = DailyStats.dateString(from: date)
+        let calendar = Calendar.current
+
+        // Always re-aggregate for current day to reflect the latest data
+        if calendar.isDate(date, inSameDayAs: Date()) {
+            try aggregateToDailyStatsSync(for: date)
+            return
+        }
+
+        let existing = try DailyStatsRepository.shared.getStats(forDate: dateString)
+
+        guard existing.isEmpty else {
+            return
+        }
+
+        try aggregateToDailyStatsSync(for: date)
     }
 
     /// Perform the actual daily aggregation logic

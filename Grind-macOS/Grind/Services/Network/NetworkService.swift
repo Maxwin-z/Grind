@@ -205,10 +205,18 @@ class NetworkService: ObservableObject {
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "yyyy-MM-dd"
 
+                // Ensure we have aggregated stats for recent history
+                let maxHistoricalDays = 30
+                do {
+                    try ensureDailyStatsCoverage(days: maxHistoricalDays, referenceDate: now, calendar: calendar)
+                } catch {
+                    logger.error("Failed to ensure daily stats coverage: \(error.localizedDescription)")
+                }
+
                 // Fetch daily stats for last 30 days
                 var dailyStats: [DailyStatsData] = []
 
-                for dayOffset in 0..<30 {
+                for dayOffset in stride(from: maxHistoricalDays - 1, through: 0, by: -1) {
                     let date = calendar.date(byAdding: .day, value: -dayOffset, to: now)!
                     let dateString = dateFormatter.string(from: date)
 
@@ -328,6 +336,15 @@ class NetworkService: ObservableObject {
             }
         } catch {
             logger.error("Failed to encode message: \(error.localizedDescription)")
+        }
+    }
+
+    private func ensureDailyStatsCoverage(days: Int, referenceDate: Date, calendar: Calendar) throws {
+        let aggregator = TimeBlockAggregator.shared
+
+        for dayOffset in 0..<days {
+            guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: referenceDate) else { continue }
+            try aggregator.ensureDailyStats(for: date)
         }
     }
 
