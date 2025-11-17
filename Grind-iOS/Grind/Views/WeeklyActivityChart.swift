@@ -38,11 +38,11 @@ struct WeeklyActivityChart: View {
                 ForEach(series.entries) { entry in
                     AreaMark(
                         x: .value("Date", entry.date),
-                        y: .value("Duration", entry.hours)
+                        y: .value("Duration", entry.minutes)
                     )
                     .foregroundStyle(by: .value("App", series.appName))
                     .position(by: .value("App", series.appName))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 }
             }
             if let selectedDate {
@@ -55,14 +55,14 @@ struct WeeklyActivityChart: View {
             domain: uniqueApps,
             range: uniqueApps.map { styleForApp($0) }
         )
-        .chartYScale(domain: 0...max(maxDailyActivityHours * 1.1, 1.0))
+        .chartYScale(domain: 0...max(maxDailyActivityMinutes * 1.1, 5.0))
         .chartXSelection(value: $selectedDate)
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) { value in
                 AxisGridLine()
                 AxisValueLabel {
-                    if let hours = value.as(Double.self) {
-                        Text(formatHours(hours))
+                    if let minutes = value.as(Double.self) {
+                        Text(formatMinutes(minutes))
                             .font(.caption)
                     }
                 }
@@ -100,7 +100,7 @@ struct WeeklyActivityChart: View {
                         legendIcon(for: entry)
                         Text(entry.appName)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(entry.color)
                     }
                 }
             }
@@ -129,7 +129,7 @@ struct WeeklyActivityChart: View {
                 ActivityEntry(
                     date: dateValue(dayData.date),
                     appName: appActivity.appName,
-                    hours: Double(appActivity.duration) / 3600.0
+                    minutes: Double(appActivity.duration) / 60.0
                 )
             }
         }
@@ -141,8 +141,21 @@ struct WeeklyActivityChart: View {
 
     private var activitySeries: [ActivitySeries] {
         let grouped = Dictionary(grouping: activityEntries, by: { $0.appName })
+        let allDates = Set(data.map { dateValue($0.date) })
+
         return grouped.map { appName, entries in
-            ActivitySeries(appName: appName, entries: entries.sorted { $0.date < $1.date })
+            let existingDates = Dictionary(uniqueKeysWithValues: entries.map { ($0.date, $0.minutes) })
+
+            // Fill missing dates with zero values
+            let completeEntries = allDates.map { date in
+                ActivityEntry(
+                    date: date,
+                    appName: appName,
+                    minutes: existingDates[date] ?? 0.0
+                )
+            }.sorted { $0.date < $1.date }
+
+            return ActivitySeries(appName: appName, entries: completeEntries)
         }
         .sorted { $0.appName < $1.appName }
     }
@@ -155,12 +168,12 @@ struct WeeklyActivityChart: View {
         Self.isoDateFormatter.date(from: dateString) ?? Date()
     }
 
-    private var maxDailyActivityHours: Double {
+    private var maxDailyActivityMinutes: Double {
         let dailyTotals = Dictionary(grouping: activityEntries, by: { $0.date })
             .mapValues { entries in
-                entries.reduce(0.0) { $0 + $1.hours }
+                entries.reduce(0.0) { $0 + $1.minutes }
             }
-        return max(dailyTotals.values.max() ?? 1.0, 1.0)
+        return max(dailyTotals.values.max() ?? 5.0, 5.0)
     }
 
     private var selectedDateLabel: String? {
@@ -171,13 +184,13 @@ struct WeeklyActivityChart: View {
     private var selectionRows: [ChartSelectionSummaryRow] {
         guard let selectedDate, let entries = entriesByDate[selectedDate] else { return [] }
         return entries
-            .sorted { $0.hours > $1.hours }
+            .sorted { $0.minutes > $1.minutes }
             .map { entry in
                 ChartSelectionSummaryRow(
                     id: entry.appName,
                     color: colorForApp(entry.appName),
                     label: entry.appName,
-                    value: formatDuration(hours: entry.hours)
+                    value: formatDuration(minutes: entry.minutes)
                 )
             }
     }
@@ -266,7 +279,7 @@ struct WeeklyActivityChart: View {
         let id = UUID()
         let date: Date
         let appName: String
-        let hours: Double
+        let minutes: Double
     }
 
     private struct ActivitySeries: Identifiable {
@@ -289,8 +302,8 @@ struct WeeklyActivityChart: View {
         return formatter
     }()
 
-    private func formatDuration(hours: Double) -> String {
-        let totalMinutes = Int((hours * 60).rounded())
+    private func formatDuration(minutes: Double) -> String {
+        let totalMinutes = Int(minutes.rounded())
         let h = totalMinutes / 60
         let m = totalMinutes % 60
         if h > 0 && m > 0 {
@@ -302,13 +315,13 @@ struct WeeklyActivityChart: View {
         }
     }
 
-    private func formatHours(_ hours: Double) -> String {
-        if hours < 0.1 {
-            return "0h"
-        } else if hours < 1.0 {
-            let minutes = Int((hours * 60).rounded())
-            return "\(minutes)m"
+    private func formatMinutes(_ minutes: Double) -> String {
+        if minutes < 1.0 {
+            return "0m"
+        } else if minutes < 60.0 {
+            return "\(Int(minutes.rounded()))m"
         } else {
+            let hours = minutes / 60.0
             return String(format: "%.1fh", hours)
         }
     }

@@ -38,11 +38,11 @@ struct WeeklyKeystrokeChart: View {
                 ForEach(series.entries) { entry in
                     AreaMark(
                         x: .value("Date", entry.date),
-                        y: .value("Keystrokes", entry.thousands)
+                        y: .value("Keystrokes", Double(entry.count))
                     )
                     .foregroundStyle(by: .value("App", series.appName))
                     .position(by: .value("App", series.appName))
-                    .interpolationMethod(.catmullRom)
+                    .interpolationMethod(.monotone)
                 }
             }
             if let selectedDate {
@@ -55,14 +55,14 @@ struct WeeklyKeystrokeChart: View {
             domain: uniqueApps,
             range: uniqueApps.map { styleForApp($0) }
         )
-        .chartYScale(domain: 0...max(maxDailyKeystrokesThousands * 1.1, 0.5))
+        .chartYScale(domain: 0...max(Double(maxDailyKeystrokes) * 1.1, 10.0))
         .chartXSelection(value: $selectedDate)
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 5)) { value in
                 AxisGridLine()
                 AxisValueLabel {
-                    if let thousands = value.as(Double.self) {
-                        Text(formatThousands(thousands))
+                    if let count = value.as(Double.self) {
+                        Text(formatKeystrokeCount(Int(count)))
                             .font(.caption)
                     }
                 }
@@ -100,7 +100,7 @@ struct WeeklyKeystrokeChart: View {
                         legendIcon(for: entry)
                         Text(entry.appName)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(entry.color)
                     }
                 }
             }
@@ -129,7 +129,6 @@ struct WeeklyKeystrokeChart: View {
                 KeystrokeEntry(
                     date: dateValue(dayData.date),
                     appName: appKeystroke.appName,
-                    thousands: Double(appKeystroke.keystrokes) / 1000.0,
                     count: appKeystroke.keystrokes
                 )
             }
@@ -142,8 +141,21 @@ struct WeeklyKeystrokeChart: View {
 
     private var keystrokeSeries: [KeystrokeSeries] {
         let grouped = Dictionary(grouping: keystrokeEntries, by: { $0.appName })
+        let allDates = Set(data.map { dateValue($0.date) })
+
         return grouped.map { appName, entries in
-            KeystrokeSeries(appName: appName, entries: entries.sorted { $0.date < $1.date })
+            let existingDates = Dictionary(uniqueKeysWithValues: entries.map { ($0.date, $0.count) })
+
+            // Fill missing dates with zero values
+            let completeEntries = allDates.map { date in
+                KeystrokeEntry(
+                    date: date,
+                    appName: appName,
+                    count: existingDates[date] ?? 0
+                )
+            }.sorted { $0.date < $1.date }
+
+            return KeystrokeSeries(appName: appName, entries: completeEntries)
         }
         .sorted { $0.appName < $1.appName }
     }
@@ -156,12 +168,12 @@ struct WeeklyKeystrokeChart: View {
         Self.isoDateFormatter.date(from: dateString) ?? Date()
     }
 
-    private var maxDailyKeystrokesThousands: Double {
+    private var maxDailyKeystrokes: Int {
         let dailyTotals = Dictionary(grouping: keystrokeEntries, by: { $0.date })
             .mapValues { entries in
-                entries.reduce(0.0) { $0 + $1.thousands }
+                entries.reduce(0) { $0 + $1.count }
             }
-        return max(dailyTotals.values.max() ?? 1.0, 1.0)
+        return max(dailyTotals.values.max() ?? 10, 10)
     }
 
     private var selectedDateLabel: String? {
@@ -267,7 +279,6 @@ struct WeeklyKeystrokeChart: View {
         let id = UUID()
         let date: Date
         let appName: String
-        let thousands: Double
         let count: Int
     }
 
@@ -302,14 +313,15 @@ struct WeeklyKeystrokeChart: View {
         return "\(formatted) keys"
     }
 
-    private func formatThousands(_ thousands: Double) -> String {
-        if thousands < 0.1 {
-            return "0"
-        } else if thousands < 1.0 {
-            let count = Int((thousands * 1000).rounded())
+    private func formatKeystrokeCount(_ count: Int) -> String {
+        if count < 1000 {
             return "\(count)"
-        } else {
+        } else if count < 10000 {
+            let thousands = Double(count) / 1000.0
             return String(format: "%.1fK", thousands)
+        } else {
+            let thousands = count / 1000
+            return "\(thousands)K"
         }
     }
 }
