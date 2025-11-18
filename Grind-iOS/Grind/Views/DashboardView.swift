@@ -13,22 +13,6 @@ struct DashboardView: View {
     // MARK: - Layout Constants
     private let padding: CGFloat = 16
 
-    // MARK: - State for dynamic heights and layout
-    @State private var timelineHeight: CGFloat = 0
-    @State private var appLegendHeight: CGFloat = 0
-    @State private var screenSize: CGSize = .zero
-    @State private var cachedAppNames: [String] = []
-    @State private var hasCompletedInitialLayout: Bool = false  // Track if initial layout is done
-    @State private var isMeasuring: Bool = false  // Prevent concurrent remeasurements
-
-    // Three-stage layout process
-    enum LayoutStage {
-        case measuringTimeline      // Stage 1: Measure timeline height
-        case measuringAppLegend     // Stage 2: Measure app legend height
-        case ready                  // Stage 3: All measurements done, show final layout
-    }
-    @State private var layoutStage: LayoutStage = .measuringTimeline
-
     private var legendAppNames: [String] {
         let activityApps = viewModel.dailyActivityData.flatMap { day in
             day.appActivities.map(\.appName)
@@ -42,308 +26,121 @@ struct DashboardView: View {
 
     var body: some View {
         GeometryReader { screen in
+            let layout = calculateLayout(screenWidth: screen.size.width, screenHeight: screen.size.height)
+
             ZStack {
-                switch layoutStage {
-                case .measuringTimeline:
-                    // Stage 1: Only render Timeline to measure its height
-                    measureTimelineStage(screenSize: screen.size)
-                        .opacity(0.3)
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea(.all, edges: .all)
 
-                case .measuringAppLegend:
-                    // Stage 2: Render Timeline + AppLegend to measure AppLegend height
-                    measureAppLegendStage(screenSize: screen.size)
-                        .opacity(0.3)
-
-                case .ready:
-                    // Stage 3: All measurements done, show final layout
-                    dashboardContent(screenSize: screen.size)
-                }
-
-                // Measurement overlay during calculation
-                if layoutStage != .ready {
-                    VStack(spacing: 20) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                        Text(stageMessage)
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(.systemGroupedBackground).opacity(0.8))
-                }
-            }
-            .background(Color(.systemGroupedBackground))
-            .ignoresSafeArea(.all, edges: .all)
-            .onChange(of: screen.size) { oldValue, newValue in
-                // Only reset if size actually changed (not initial load) and not currently measuring
-                if screenSize != .zero && newValue != screenSize && !isMeasuring {
-                    print("📱 Screen size changed: \(screenSize) → \(newValue), triggering remeasurement")
-                    screenSize = newValue
-                    // Reset to stage 1 to remeasure
-                    isMeasuring = true
-                    hasCompletedInitialLayout = false
-                    layoutStage = .measuringTimeline
-                    timelineHeight = 0
-                    appLegendHeight = 0
-                } else if screenSize == .zero {
-                    print("📱 Initial screen size: \(newValue)")
-                    screenSize = newValue
-                } else if isMeasuring {
-                    print("📱 Screen size change ignored (currently measuring)")
-                }
-            }
-            .onAppear {
-                print("👋 DashboardView appeared")
-                if screenSize == .zero {
-                    screenSize = screen.size
-                }
-                // Cache initial app names (will be updated when layout completes)
-                if cachedAppNames.isEmpty {
-                    cachedAppNames = legendAppNames
-                    print("📋 Initial app list cached: \(cachedAppNames)")
-                }
-            }
-            .onChange(of: legendAppNames) { oldValue, newValue in
-                // Only remeasure if:
-                // 1. Initial layout is complete (hasCompletedInitialLayout == true)
-                // 2. App list actually changed
-                // 3. Not currently measuring
-                if hasCompletedInitialLayout && newValue != cachedAppNames && !isMeasuring {
-                    print("📋 App list changed after initial layout: \(cachedAppNames.count) → \(newValue.count), triggering remeasurement")
-                    print("   Old: \(cachedAppNames)")
-                    print("   New: \(newValue)")
-                    cachedAppNames = newValue
-                    // Reset to stage 1 to remeasure
-                    isMeasuring = true
-                    hasCompletedInitialLayout = false
-                    layoutStage = .measuringTimeline
-                    timelineHeight = 0
-                    appLegendHeight = 0
-                } else if !hasCompletedInitialLayout {
-                    print("📋 App list changed during initial layout: \(cachedAppNames.count) → \(newValue.count), ignoring")
-                    cachedAppNames = newValue  // Update cache but don't trigger remeasure
-                } else if isMeasuring {
-                    print("📋 App list change ignored (currently measuring)")
-                    cachedAppNames = newValue  // Update cache
-                }
+                // All views positioned absolutely
+                dashboardContent(layout: layout)
             }
         }
     }
 
-    private var stageMessage: String {
-        switch layoutStage {
-        case .measuringTimeline:
-            return "Measuring timeline... (1/3)"
-        case .measuringAppLegend:
-            return "Measuring app legend... (2/3)"
-        case .ready:
-            return ""
-        }
-    }
-
-
-    // MARK: - Stage 1: Measure Timeline
+    // MARK: - Absolute Positioned Layout
 
     @ViewBuilder
-    private func measureTimelineStage(screenSize: CGSize) -> some View {
-        let timelineWidth = screenSize.width - padding * 2
-
-        ZStack {
-            Color.clear
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            VStack {
-                TodayTimelineView(timeBlocks: viewModel.todayTimeBlocks)
-                    .frame(width: timelineWidth)
-                    .fixedSize(horizontal: false, vertical: true)  // Allow vertical auto-sizing
-                    .background(
-                        GeometryReader { proxy in
-                            Color.clear
-                                .onAppear {
-                                    // Only measure if we're still in Stage 1
-                                    guard layoutStage == .measuringTimeline else {
-                                        print("⚠️ [Stage 1] GeometryReader appeared but not in Stage 1 (stage=\(layoutStage)), ignoring")
-                                        return
-                                    }
-
-                                    let height = proxy.size.height
-                                    print("📐 [Stage 1] Timeline GeometryReader appeared, size: \(proxy.size)")
-
-                                    if height > 0 && timelineHeight == 0 {
-                                        print("📏 [Stage 1] Timeline height measured: \(height)")
-                                        // Update state in next run loop to ensure propagation
-                                        DispatchQueue.main.async {
-                                            self.timelineHeight = height
-                                            print("📊 [Stage 1] timelineHeight updated to: \(self.timelineHeight)")
-                                            // Wait for another run loop before transitioning
-                                            if self.layoutStage == .measuringTimeline {
-                                                DispatchQueue.main.async {
-                                                    print("🔄 [Stage 1→2] About to transition with timelineHeight=\(self.timelineHeight)")
-                                                    self.layoutStage = .measuringAppLegend
-                                                    print("✅ [Stage 1→2] Now in app legend measurement stage, timelineHeight=\(self.timelineHeight)")
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                        }
-                    )
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(padding)
-        }
-    }
-
-    // MARK: - Stage 2: Measure AppLegend
-
-    @ViewBuilder
-    private func measureAppLegendStage(screenSize: CGSize) -> some View {
-        let _ = print("📋 [Stage 2 Build] Building measureAppLegendStage with timelineHeight=\(timelineHeight), appLegendHeight=\(appLegendHeight)")
-
-        // Calculate dimensions needed for AppLegend positioning
-        let timelineWidth = screenSize.width - padding * 2
-        let keyboardWidth = CGFloat(500)
-        let keyboardHeight = keyboardWidth * 2 / 5
-        let typingSpeedSize = keyboardHeight
-        let iterm2Width = keyboardWidth + typingSpeedSize + padding
-        let appListWidth = screenSize.width - iterm2Width - padding * 3
-
-        VStack(alignment: .leading, spacing: padding) {
-            // Timeline (already measured, fixed height)
-            if timelineHeight > 0 {
-                TodayTimelineView(timeBlocks: viewModel.todayTimeBlocks)
-                    .frame(width: timelineWidth, height: timelineHeight)
-            }
-
-            // AppLegend (measuring)
-            HStack(spacing: padding) {
-                AppLegendListView(
-                    appNames: legendAppNames,
-                    appMetadata: viewModel.appSelectionMetadata
+    private func dashboardContent(layout: DashboardLayout) -> some View {
+        ZStack(alignment: .topLeading) {
+            // 1. Today's Activity Timeline (top, full width)
+            TodayTimelineView(timeBlocks: viewModel.todayTimeBlocks)
+                .frame(width: layout.timelineWidth, height: layout.timelineHeight)
+                .overlay(
+                    Rectangle()
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                 )
-                .frame(width: appListWidth)
-                .fixedSize(horizontal: false, vertical: true)  // Allow vertical auto-sizing
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .onAppear {
-                                print("📐 [Stage 2] AppLegend GeometryReader onAppear called!")
-                                print("   layoutStage: \(layoutStage)")
-                                print("   proxy.size: \(proxy.size)")
-
-                                // Only measure if we're still in Stage 2
-                                guard layoutStage == .measuringAppLegend else {
-                                    print("⚠️ [Stage 2] Not in Stage 2, ignoring")
-                                    return
-                                }
-
-                                let height = proxy.size.height
-                                print("📐 [Stage 2] AppLegend measured height: \(height)")
-
-                                if height > 0 {
-                                    print("✅ [Stage 2] Valid height, proceeding to update...")
-                                    // Update state in next run loop
-                                    DispatchQueue.main.async {
-                                        self.appLegendHeight = height
-                                        print("📊 [Stage 2] appLegendHeight updated to: \(self.appLegendHeight)")
-                                        // Wait for another run loop before transitioning
-                                        if self.layoutStage == .measuringAppLegend {
-                                            DispatchQueue.main.async {
-                                                print("🔄 [Stage 2→3] Transitioning to ready state...")
-                                                self.layoutStage = .ready
-                                                self.hasCompletedInitialLayout = true
-                                                self.isMeasuring = false  // Measurement complete
-                                                print("✅ [Stage 2→3] Layout complete! Timeline=\(self.timelineHeight), AppLegend=\(self.appLegendHeight), can accept new triggers now")
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    print("❌ [Stage 2] Invalid height: \(height)")
-                                }
-                            }
-                    }
+                .position(
+                    x: layout.timelineX,
+                    y: layout.timelineY
                 )
 
-                Spacer()
-            }
+            // 2. App Legend (left column, below timeline)
+            AppLegendListView(
+                appNames: legendAppNames,
+                appMetadata: viewModel.appSelectionMetadata
+            )
+            .frame(width: layout.appListWidth, height: layout.appListHeight)
+            .overlay(
+                Rectangle()
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
+            .position(
+                x: layout.appListX,
+                y: layout.appListY
+            )
 
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(padding)  // Outer padding for entire dashboard
-        .background(Color(.systemGroupedBackground))
-    }
+            // 3. Weekly Activity Chart (left column, below app legend)
+            WeeklyActivityChart(
+                data: viewModel.dailyActivityData,
+                appMetadata: viewModel.appSelectionMetadata
+            )
+            .frame(width: layout.chartWidth, height: layout.chartHeight)
+            .overlay(
+                Rectangle()
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
+            .position(
+                x: layout.activityChartX,
+                y: layout.activityChartY
+            )
 
-    // MARK: - Stage 3: Final Layout
+            // 4. Weekly Keystroke Chart (left column, below activity chart)
+            WeeklyKeystrokeChart(
+                data: viewModel.dailyKeystrokeData,
+                appMetadata: viewModel.appSelectionMetadata
+            )
+            .frame(width: layout.chartWidth, height: layout.chartHeight)
+            .overlay(
+                Rectangle()
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
+            .position(
+                x: layout.keystrokeChartX,
+                y: layout.keystrokeChartY
+            )
 
-    @ViewBuilder
-    private func dashboardContent(screenSize: CGSize) -> some View {
-        let _ = print("🎯 [Stage 3] dashboardContent called with timelineHeight=\(timelineHeight), appLegendHeight=\(appLegendHeight)")
-        let layout = calculateLayout(screenWidth: screenSize.width, screenHeight: screenSize.height)
+            // 5. iTerm2 Terminal View (right column, below timeline)
+            ITerm2TerminalView(sessions: viewModel.iterm2Sessions)
+                .frame(width: layout.iterm2Width, height: layout.iterm2Height)
+                .overlay(
+                    Rectangle()
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                )
+                .position(
+                    x: layout.iterm2X,
+                    y: layout.iterm2Y
+                )
 
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: padding) {
-                // 1. Today's Activity Timeline (using measured height)
-                TodayTimelineView(timeBlocks: viewModel.todayTimeBlocks)
-                    .frame(width: layout.timelineWidth, height: timelineHeight)
+            // 6. Typing Speed (right column, bottom left)
+            TypingSpeedCompactView(kpm: viewModel.currentKPM)
+                .frame(width: layout.typingSpeedSize, height: layout.typingSpeedSize)
+                .overlay(
+                    Rectangle()
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                )
+                .position(
+                    x: layout.typingSpeedX,
+                    y: layout.typingSpeedY
+                )
 
-                // 2. Main content area
-                HStack(spacing: padding) {
-                    // Left Column: Apps + Two Charts
-                    VStack(spacing: padding) {
-                        // Apps (using measured height)
-                        AppLegendListView(
-                            appNames: legendAppNames,
-                            appMetadata: viewModel.appSelectionMetadata
-                        )
-                        .frame(width: layout.appListWidth, height: appLegendHeight)
+            // 7. Keyboard Visualizer (right column, bottom right)
+            KeyboardVisualizerView(
+                currentKey: viewModel.currentKey,
+                currentModifiers: viewModel.currentModifiers,
+                keystrokeSequence: viewModel.keystrokeSequence
+            )
+            .frame(width: layout.keyboardWidth, height: layout.keyboardHeight)
+            .overlay(
+                Rectangle()
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
+            .position(
+                x: layout.keyboardX,
+                y: layout.keyboardY
+            )
 
-                        // Weekly Activity Chart
-                        WeeklyActivityChart(
-                            data: viewModel.dailyActivityData,
-                            appMetadata: viewModel.appSelectionMetadata
-                        )
-                        .frame(width: layout.chartWidth, height: layout.chartHeight)
-
-                        // Weekly Keystroke Chart
-                        WeeklyKeystrokeChart(
-                            data: viewModel.dailyKeystrokeData,
-                            appMetadata: viewModel.appSelectionMetadata
-                        )
-                        .frame(width: layout.chartWidth, height: layout.chartHeight)
-                    }
-
-                    // Right Column: iTerm2 + (Typing Speed + Keyboard)
-                    VStack(spacing: padding) {
-                        // iTerm2 Terminal View
-                        ITerm2TerminalView(sessions: viewModel.iterm2Sessions)
-                            .frame(width: layout.iterm2Width, height: layout.iterm2Height)
-
-                        // Bottom row: Typing Speed + Keyboard
-                        HStack(spacing: padding) {
-                            // Typing Speed (square)
-                            TypingSpeedCompactView(kpm: viewModel.currentKPM)
-                                .frame(width: layout.typingSpeedSize, height: layout.typingSpeedSize)
-
-                            // Keyboard Visualizer
-                            KeyboardVisualizerView(
-                                currentKey: viewModel.currentKey,
-                                currentModifiers: viewModel.currentModifiers,
-                                keystrokeSequence: viewModel.keystrokeSequence
-                            )
-                            .frame(width: layout.keyboardWidth, height: layout.keyboardHeight)
-                            .background(Color(.systemBackground))
-                            .cornerRadius(12)
-                            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(padding)  // Outer padding for entire dashboard
-
-            // Floating connection status and refresh button (top-right)
+            // 8. Floating connection status and refresh button (top-right)
             HStack(spacing: 8) {
                 Circle()
                     .fill(viewModel.isConnected ? Color.green : Color.red)
@@ -362,8 +159,10 @@ struct DashboardView: View {
                         .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 2)
                 }
             }
-            .padding(.trailing, 20)
-            .padding(.top, 60)
+            .position(
+                x: layout.statusX,
+                y: layout.statusY
+            )
         }
     }
 
@@ -372,91 +171,105 @@ struct DashboardView: View {
 // MARK: - Layout Helpers
 
 private struct DashboardLayout {
+    // Dimensions
     let timelineWidth: CGFloat
+    let timelineHeight: CGFloat
     let keyboardWidth: CGFloat
     let keyboardHeight: CGFloat
     let typingSpeedSize: CGFloat
     let iterm2Width: CGFloat
     let iterm2Height: CGFloat
     let appListWidth: CGFloat
+    let appListHeight: CGFloat
     let chartWidth: CGFloat
     let chartHeight: CGFloat
+
+    // Absolute positions (center points for .position())
+    let timelineX: CGFloat
+    let timelineY: CGFloat
+    let appListX: CGFloat
+    let appListY: CGFloat
+    let activityChartX: CGFloat
+    let activityChartY: CGFloat
+    let keystrokeChartX: CGFloat
+    let keystrokeChartY: CGFloat
+    let iterm2X: CGFloat
+    let iterm2Y: CGFloat
+    let typingSpeedX: CGFloat
+    let typingSpeedY: CGFloat
+    let keyboardX: CGFloat
+    let keyboardY: CGFloat
+    let statusX: CGFloat
+    let statusY: CGFloat
 }
 
 extension DashboardView {
     private func calculateLayout(screenWidth: CGFloat, screenHeight: CGFloat) -> DashboardLayout {
-        print("📐 ========== DASHBOARD LAYOUT CALCULATION ==========")
-        print("📱 Screen Size: \(screenWidth) x \(screenHeight)")
-        print("📏 Padding: \(padding)")
-        print("📊 Dynamic Heights (measured): timeline=\(timelineHeight), appLegend=\(appLegendHeight)")
-        print("")
+        // Fixed layout for screen size 1180 x 795
+        // All spacing between views = 16px (consistent padding)
+        // Keyboard width = 500 (fixed), height = 200 (5:2 aspect ratio)
 
-        // Step 1: TodayTimelineView width (height is measured)
-        let timelineWidth = screenWidth - padding * 2
-        print("1️⃣ Timeline: width=\(timelineWidth), height=\(timelineHeight)")
+        // Dimensions (hardcoded)
+        let timelineWidth: CGFloat = 1148        // 1180 - 16*2
+        let timelineHeight: CGFloat = 180
+        let keyboardWidth: CGFloat = 500
+        let keyboardHeight: CGFloat = 200        // 500 * 2/5
+        let typingSpeedSize: CGFloat = 200       // = keyboard height
+        let iterm2Width: CGFloat = 716           // 200 + 16 + 500
+        let iterm2Height: CGFloat = 351          // 795 - 180 - 200 - 16*4
+        let appListWidth: CGFloat = 416          // 1180 - 716 - 16*3
+        let appListHeight: CGFloat = 150
+        let chartWidth: CGFloat = 416            // = appListWidth
+        let chartHeight: CGFloat = 192.5         // (795 - 180 - 150 - 16*5) / 2
 
-        // Step 2: KeyboardVisualizerView (w = fixed, aspect ratio 5:2)
-        let keyboardWidth = (CGFloat)(500)
-        let keyboardHeight = keyboardWidth * 2 / 5
-        print("2️⃣ Keyboard: width=\(keyboardWidth), height=\(keyboardHeight)")
-
-        // Step 3: TypingSpeedCompactView (square, size = keyboard height)
-        let typingSpeedSize = keyboardHeight
-        print("3️⃣ TypingSpeed: size=\(typingSpeedSize)x\(typingSpeedSize)")
-
-        // Step 4: ITerm2TerminalView
-        let iterm2Width = keyboardWidth + typingSpeedSize + padding
-        let iterm2Height = screenHeight - keyboardHeight - timelineHeight - padding * 4
-        print("4️⃣ iTerm2: width=\(iterm2Width), height=\(iterm2Height)")
-
-        // Step 5: AppLegendListView width (height is measured)
-        let appListWidth = screenWidth - iterm2Width - padding * 3
-        print("5️⃣ AppList: width=\(appListWidth), height=\(appLegendHeight)")
-
-        // Step 6: WeeklyActivityChart and WeeklyKeystrokeChart
-        let chartWidth = appListWidth
-        // Calculate available height for left column
-        let leftColumnAvailableHeight = screenHeight - timelineHeight - padding * 4
-        let remainingHeightForCharts = leftColumnAvailableHeight - appLegendHeight - padding * 2
-        let chartHeight = max(remainingHeightForCharts / 2, 120)
-        print("6️⃣ Charts: width=\(chartWidth), height=\(chartHeight)")
-        print("   └─ leftColumnAvailable=\(leftColumnAvailableHeight), remaining=\(remainingHeightForCharts)")
-
-        print("📐 ================================================")
-        print("")
+        // Absolute positions (center points for .position())
+        // All calculated to ensure 16px spacing between all views
+        let timelineX: CGFloat = 590             // 1180 / 2
+        let timelineY: CGFloat = 106             // 16 + 180/2
+        let leftColumnX: CGFloat = 224           // 16 + 416/2
+        let appListY: CGFloat = 287              // 16 + 180 + 16 + 150/2
+        let activityChartY: CGFloat = 474.25     // 16 + 180 + 16 + 150 + 16 + 192.5/2
+        let keystrokeChartY: CGFloat = 682.75    // 16 + 180 + 16 + 150 + 16 + 192.5 + 16 + 192.5/2
+        let rightColumnX: CGFloat = 806          // 16 + 416 + 16 + 716/2
+        let iterm2Y: CGFloat = 387.5             // 16 + 180 + 16 + 351/2
+        let typingSpeedX: CGFloat = 548          // 16 + 416 + 16 + 200/2
+        let typingSpeedY: CGFloat = 679          // 795 - 16 - 200/2
+        let keyboardX: CGFloat = 914             // 16 + 416 + 16 + 200 + 16 + 500/2
+        let keyboardY: CGFloat = 679             // 795 - 16 - 200/2
+        let statusX: CGFloat = 1130              // 1180 - 50
+        let statusY: CGFloat = 60
 
         return DashboardLayout(
             timelineWidth: timelineWidth,
+            timelineHeight: timelineHeight,
             keyboardWidth: keyboardWidth,
             keyboardHeight: keyboardHeight,
             typingSpeedSize: typingSpeedSize,
             iterm2Width: iterm2Width,
             iterm2Height: iterm2Height,
             appListWidth: appListWidth,
+            appListHeight: appListHeight,
             chartWidth: chartWidth,
-            chartHeight: chartHeight
+            chartHeight: chartHeight,
+            timelineX: timelineX,
+            timelineY: timelineY,
+            appListX: leftColumnX,
+            appListY: appListY,
+            activityChartX: leftColumnX,
+            activityChartY: activityChartY,
+            keystrokeChartX: leftColumnX,
+            keystrokeChartY: keystrokeChartY,
+            iterm2X: rightColumnX,
+            iterm2Y: iterm2Y,
+            typingSpeedX: typingSpeedX,
+            typingSpeedY: typingSpeedY,
+            keyboardX: keyboardX,
+            keyboardY: keyboardY,
+            statusX: statusX,
+            statusY: statusY
         )
     }
 }
-
-// MARK: - Preference Keys
-
-private struct TimelineHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-private struct AppLegendHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 
 // MARK: - iTerm2 Terminal View
 
@@ -486,16 +299,8 @@ struct ITerm2TerminalView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(12)  // Internal padding only
+        .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.black.opacity(0.05))
-        )
     }
 
     private func placeholder(message: String) -> some View {
@@ -506,11 +311,6 @@ struct ITerm2TerminalView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(.tertiarySystemBackground))
-        )
     }
 }
 
@@ -538,11 +338,6 @@ private struct TerminalOutputArea: View {
                 scrollToBottom(proxy: proxy)
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.black.opacity(0.85))
-        )
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {

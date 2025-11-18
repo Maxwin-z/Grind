@@ -43,9 +43,7 @@ struct TypingSpeedCompactView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .padding(16)
     }
 
     private var progress: Double {

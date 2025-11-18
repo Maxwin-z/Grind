@@ -35,11 +35,8 @@ struct AppLegendListView: View {
                 .padding(.vertical, 4)
             }
         }
-        .padding(12)  // Internal padding only
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
     }
 
     private func legendRow(for appName: String) -> some View {
