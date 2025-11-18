@@ -7,8 +7,10 @@
 
 import SwiftUI
 
-// Shared terminal font so size can be tuned centrally
-private let terminalFont: Font = .system(size: 24, design: .monospaced)
+// Shared terminal typography so spacing stays in sync with size tweaks
+private let terminalFontSize: CGFloat = 24
+private let terminalFont: Font = .system(size: terminalFontSize, design: .monospaced)
+private let terminalLineHeight: CGFloat = terminalFontSize * 1.2
 
 // MARK: - RGBColor Extension
 
@@ -72,7 +74,7 @@ struct ITerm2TerminalView: View {
                     // Render styled lines with full color support
                     ForEach(Array(styledLines.enumerated()), id: \.offset) { index, line in
                         TerminalLineView(line: line)
-                            .frame(height: 16) // Fixed line height
+                            .frame(height: terminalLineHeight)
                     }
                 } else if let screenLines = session.screenLines, !screenLines.isEmpty {
                     // Fallback to plain text if no styled lines available
@@ -81,7 +83,7 @@ struct ITerm2TerminalView: View {
                             .font(terminalFont)
                             .foregroundColor(defaultForeground)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .frame(height: 16)
+                            .frame(height: terminalLineHeight)
                     }
                 } else {
                     // No content available
