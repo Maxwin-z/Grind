@@ -15,7 +15,7 @@ struct TodayTimelineView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Today's Activity Timeline")
+            Text("Today's Activity Timeline (\(formattedTotalHours))")
                 .font(.headline)
                 .foregroundColor(.primary)
 
@@ -75,6 +75,19 @@ struct TodayTimelineView: View {
         }
         .frame(height: 120)
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Computed Properties
+
+    private var totalActivityHours: Double {
+        let totalSeconds = timeBlocks
+            .filter { $0.hasActivity }
+            .reduce(0) { $0 + $1.duration }
+        return Double(totalSeconds) / 3600.0
+    }
+
+    private var formattedTotalHours: String {
+        String(format: "%.1f h", totalActivityHours)
     }
 
     // MARK: - Helper Functions

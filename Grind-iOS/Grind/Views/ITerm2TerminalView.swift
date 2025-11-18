@@ -125,6 +125,9 @@ struct ITerm2TerminalView: View {
                             TerminalLineView(line: line)
                                 .frame(height: terminalLineHeight)
                         }
+                        // Spacer to ensure bottom line has breathing room
+                        Spacer(minLength: terminalLineHeight)
+                            .frame(height: terminalLineHeight)
                         // Invisible anchor at bottom
                         Color.clear
                             .frame(width: 1, height: 1)
@@ -138,6 +141,9 @@ struct ITerm2TerminalView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .frame(height: terminalLineHeight)
                         }
+                        // Spacer to ensure bottom line has breathing room
+                        Spacer(minLength: terminalLineHeight)
+                            .frame(height: terminalLineHeight)
                         // Invisible anchor at bottom
                         Color.clear
                             .frame(width: 1, height: 1)
