@@ -18,6 +18,21 @@ class ITerm2EventMonitor:
         self.last_output = None
         self.keystroke_buffer = []  # Buffer for capturing keystrokes
 
+    def color_to_dict(self, color):
+        """Convert iTerm2 color object to RGB dictionary."""
+        if color is None:
+            return None
+        try:
+            # iTerm2 color components are 0-255
+            return {
+                "r": int(color.red),
+                "g": int(color.green),
+                "b": int(color.blue),
+                "a": int(color.alpha) if hasattr(color, 'alpha') else 255
+            }
+        except:
+            return None
+
     async def get_session_info(self, session):
         """Extract information from a session."""
         try:
@@ -30,6 +45,7 @@ class ITerm2EventMonitor:
             # Get screen contents
             screen_contents = await session.async_get_screen_contents()
             lines = []
+            styled_lines = []  # Lines with color information
             cursor_position = None
             try:
                 # Capture the last 100 lines from the screen for client display
@@ -39,13 +55,50 @@ class ITerm2EventMonitor:
                     line = screen_contents.line(i)
                     lines.append(line.string)
 
+                    # Extract styled characters with color information
+                    styled_chars = []
+                    for char_index in range(len(line.string)):
+                        try:
+                            char = line.string[char_index]
+                            # Get the screen character at this position
+                            screen_char = screen_contents.line(i).string_at(char_index)
+
+                            # Build character style data
+                            char_data = {
+                                "char": char,
+                                "fg_color": self.color_to_dict(screen_char.foreground_color) if hasattr(screen_char, 'foreground_color') else None,
+                                "bg_color": self.color_to_dict(screen_char.background_color) if hasattr(screen_char, 'background_color') else None,
+                                "bold": screen_char.bold if hasattr(screen_char, 'bold') else False,
+                                "italic": screen_char.italic if hasattr(screen_char, 'italic') else False,
+                                "underline": screen_char.underline if hasattr(screen_char, 'underline') else False,
+                            }
+                            styled_chars.append(char_data)
+                        except:
+                            # Fallback for characters without style info
+                            styled_chars.append({
+                                "char": char if char_index < len(line.string) else " ",
+                                "fg_color": None,
+                                "bg_color": None,
+                                "bold": False,
+                                "italic": False,
+                                "underline": False
+                            })
+
+                    styled_lines.append({
+                        "text": line.string,
+                        "characters": styled_chars
+                    })
+
                 # Get cursor position for input tracking
                 cursor_position = {
                     "x": screen_contents.cursor_coord.x,
                     "y": screen_contents.cursor_coord.y
                 }
-            except:
+            except Exception as e:
+                sys.stderr.write(f"[Event Monitor] Error parsing screen content: {e}\n")
+                sys.stderr.flush()
                 lines = []
+                styled_lines = []
 
             # Get recent keystrokes if this is the active session
             keystrokes = []
@@ -60,7 +113,8 @@ class ITerm2EventMonitor:
                 "path": pwd,
                 "user": user,
                 "hostname": host,
-                "screen_lines": lines,
+                "screen_lines": lines,  # Plain text for backward compatibility
+                "styled_lines": styled_lines,  # Rich color data for iOS rendering
                 "cursor_position": cursor_position,
                 "recent_keystrokes": keystrokes
             }

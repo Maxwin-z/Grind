@@ -101,7 +101,7 @@ struct DashboardView: View {
             )
 
             // 5. iTerm2 Terminal View (right column, below timeline)
-            ITerm2TerminalView(sessions: viewModel.iterm2Sessions)
+            ITerm2TerminalListView(sessions: viewModel.iterm2Sessions)
                 .frame(width: layout.iterm2Width, height: layout.iterm2Height)
                 .overlay(
                     Rectangle()
@@ -271,31 +271,21 @@ extension DashboardView {
     }
 }
 
-// MARK: - iTerm2 Terminal View
+// MARK: - iTerm2 Terminal List View
 
-struct ITerm2TerminalView: View {
+struct ITerm2TerminalListView: View {
     let sessions: [ITerm2Session]
 
-    private var renderedLines: [String] {
-        guard let session = sessions.first(where: { $0.isActive }) ?? sessions.first else {
-            return []
-        }
-
-        let lines = session.screenLines ?? []
-        let maxLines = 100
-        if lines.count > maxLines {
-            return Array(lines.suffix(maxLines))
-        }
-        return lines
+    private var activeSession: ITerm2Session? {
+        sessions.first(where: { $0.isActive }) ?? sessions.first
     }
 
     var body: some View {
         ZStack {
-            if renderedLines.isEmpty {
-                placeholder(message: "Waiting for terminal output…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if let session = activeSession {
+                ITerm2TerminalView(session: session)
             } else {
-                TerminalOutputArea(lines: renderedLines)
+                placeholder(message: "Waiting for terminal output…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }

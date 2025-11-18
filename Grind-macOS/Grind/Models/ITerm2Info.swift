@@ -12,6 +12,36 @@ struct CursorPosition: Codable {
     let y: Int
 }
 
+struct RGBColor: Codable {
+    let r: Int
+    let g: Int
+    let b: Int
+    let a: Int
+}
+
+struct ITerm2Character: Codable {
+    let char: String
+    let fgColor: RGBColor?
+    let bgColor: RGBColor?
+    let bold: Bool
+    let italic: Bool
+    let underline: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case char
+        case fgColor = "fg_color"
+        case bgColor = "bg_color"
+        case bold
+        case italic
+        case underline
+    }
+}
+
+struct ITerm2StyledLine: Codable {
+    let text: String
+    let characters: [ITerm2Character]
+}
+
 struct Keystroke: Codable {
     let key: String
     let modifiers: Int
@@ -26,6 +56,7 @@ struct ITerm2Session: Codable, Identifiable {
     let user: String?
     let hostname: String?
     let screenLines: [String]
+    let styledLines: [ITerm2StyledLine]?  // Rich color data for rendering
     let isActive: Bool
     let error: String?
     let cursorPosition: CursorPosition?
@@ -41,6 +72,7 @@ struct ITerm2Session: Codable, Identifiable {
         case user
         case hostname
         case screenLines = "screen_lines"
+        case styledLines = "styled_lines"
         case isActive = "is_active"
         case error
         case cursorPosition = "cursor_position"

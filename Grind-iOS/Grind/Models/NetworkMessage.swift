@@ -282,6 +282,36 @@ struct ITerm2SessionsData: Codable {
     let sessions: [ITerm2Session]
 }
 
+struct RGBColor: Codable {
+    let r: Int
+    let g: Int
+    let b: Int
+    let a: Int
+}
+
+struct ITerm2Character: Codable {
+    let char: String
+    let fgColor: RGBColor?
+    let bgColor: RGBColor?
+    let bold: Bool
+    let italic: Bool
+    let underline: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case char
+        case fgColor = "fg_color"
+        case bgColor = "bg_color"
+        case bold
+        case italic
+        case underline
+    }
+}
+
+struct ITerm2StyledLine: Codable {
+    let text: String
+    let characters: [ITerm2Character]
+}
+
 struct ITerm2Session: Codable, Identifiable {
     var id: String { sessionId }
     let sessionId: String
@@ -293,6 +323,20 @@ struct ITerm2Session: Codable, Identifiable {
     let tabIndex: Int
     let paneIndex: Int
     let screenLines: [String]?
+    let styledLines: [ITerm2StyledLine]?
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId
+        case name
+        case currentDirectory
+        case currentCommand
+        case isActive
+        case windowIndex
+        case tabIndex
+        case paneIndex
+        case screenLines
+        case styledLines = "styled_lines"
+    }
 }
 
 struct ErrorData: Codable {

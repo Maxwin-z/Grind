@@ -182,6 +182,23 @@ class ITerm2Service: ObservableObject {
             for tab in window.tabs {
                 var paneIndex = 0
                 for session in tab.sessions {
+                    // Convert ITerm2StyledLine to network format
+                    let styledLines = session.styledLines?.map { line in
+                        ITerm2StyledLine(
+                            text: line.text,
+                            characters: line.characters.map { char in
+                                ITerm2Character(
+                                    char: char.char,
+                                    fgColor: char.fgColor.map { RGBColor(r: $0.r, g: $0.g, b: $0.b, a: $0.a) },
+                                    bgColor: char.bgColor.map { RGBColor(r: $0.r, g: $0.g, b: $0.b, a: $0.a) },
+                                    bold: char.bold,
+                                    italic: char.italic,
+                                    underline: char.underline
+                                )
+                            }
+                        )
+                    }
+
                     let sessionData = ITerm2SessionData(
                         sessionId: session.sessionId,
                         name: session.displayName,
@@ -191,7 +208,8 @@ class ITerm2Service: ObservableObject {
                         windowIndex: windowIndex,
                         tabIndex: tabIndex,
                         paneIndex: paneIndex,
-                        screenLines: session.lastScreenLines
+                        screenLines: session.lastScreenLines,
+                        styledLines: styledLines
                     )
                     sessions.append(sessionData)
                     paneIndex += 1

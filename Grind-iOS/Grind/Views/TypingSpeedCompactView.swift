@@ -35,9 +35,15 @@ struct TypingSpeedCompactView: View {
                         .rotationEffect(.degrees(-90))
                         .animation(.easeInOut(duration: 0.5), value: kpm)
 
-                    Text("\(kpm)")
-                        .font(.system(size: fontSize, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
+                    VStack(spacing: 4) {
+                        Text("\(kpm)")
+                            .font(.system(size: fontSize, weight: .bold, design: .rounded))
+                            .foregroundColor(.primary)
+
+                        Text("KPM")
+                            .font(.system(size: fontSize * 0.35, weight: .medium, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
                 }
                 Spacer(minLength: 0)
             }

@@ -187,6 +187,8 @@ struct ITerm2SessionsMessage: NetworkMessage {
     let sessions: [ITerm2SessionData]
 }
 
+// Note: RGBColor, ITerm2Character, and ITerm2StyledLine are defined in Models/ITerm2Info.swift
+
 struct ITerm2SessionData: Codable {
     let sessionId: String
     let name: String
@@ -197,6 +199,20 @@ struct ITerm2SessionData: Codable {
     let tabIndex: Int
     let paneIndex: Int
     let screenLines: [String]?
+    let styledLines: [ITerm2StyledLine]?
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId
+        case name
+        case currentDirectory
+        case currentCommand
+        case isActive
+        case windowIndex
+        case tabIndex
+        case paneIndex
+        case screenLines
+        case styledLines = "styled_lines"
+    }
 }
 
 /// Heartbeat message (periodic keep-alive and activity summary)
