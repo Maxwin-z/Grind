@@ -211,27 +211,27 @@ extension DashboardView {
 
         // Dimensions (hardcoded)
         let timelineWidth: CGFloat = 1148        // 1180 - 16*2
-        let timelineHeight: CGFloat = 180
+        let timelineHeight: CGFloat = 150
         let keyboardWidth: CGFloat = 500
         let keyboardHeight: CGFloat = 200        // 500 * 2/5
         let typingSpeedSize: CGFloat = 200       // = keyboard height
         let iterm2Width: CGFloat = 716           // 200 + 16 + 500
-        let iterm2Height: CGFloat = 351          // 795 - 180 - 200 - 16*4
+        let iterm2Height: CGFloat = 381          // 795 - 150 - 200 - 16*4
         let appListWidth: CGFloat = 416          // 1180 - 716 - 16*3
         let appListHeight: CGFloat = 150
         let chartWidth: CGFloat = 416            // = appListWidth
-        let chartHeight: CGFloat = 192.5         // (795 - 180 - 150 - 16*5) / 2
+        let chartHeight: CGFloat = 207.5         // (795 - 150 - 150 - 16*5) / 2
 
         // Absolute positions (center points for .position())
         // All calculated to ensure 16px spacing between all views
         let timelineX: CGFloat = 590             // 1180 / 2
-        let timelineY: CGFloat = 106             // 16 + 180/2
+        let timelineY: CGFloat = 91              // 16 + 150/2
         let leftColumnX: CGFloat = 224           // 16 + 416/2
-        let appListY: CGFloat = 287              // 16 + 180 + 16 + 150/2
-        let activityChartY: CGFloat = 474.25     // 16 + 180 + 16 + 150 + 16 + 192.5/2
-        let keystrokeChartY: CGFloat = 682.75    // 16 + 180 + 16 + 150 + 16 + 192.5 + 16 + 192.5/2
+        let appListY: CGFloat = 257              // 16 + 150 + 16 + 150/2
+        let activityChartY: CGFloat = 451.75     // 16 + 150 + 16 + 150 + 16 + 207.5/2
+        let keystrokeChartY: CGFloat = 675.25    // 16 + 150 + 16 + 150 + 16 + 207.5 + 16 + 207.5/2
         let rightColumnX: CGFloat = 806          // 16 + 416 + 16 + 716/2
-        let iterm2Y: CGFloat = 387.5             // 16 + 180 + 16 + 351/2
+        let iterm2Y: CGFloat = 372.5             // 16 + 150 + 16 + 381/2
         let typingSpeedX: CGFloat = 548          // 16 + 416 + 16 + 200/2
         let typingSpeedY: CGFloat = 679          // 795 - 16 - 200/2
         let keyboardX: CGFloat = 914             // 16 + 416 + 16 + 200 + 16 + 500/2
@@ -289,7 +289,6 @@ struct ITerm2TerminalListView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 

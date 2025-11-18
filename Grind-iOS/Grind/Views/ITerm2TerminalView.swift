@@ -91,7 +91,6 @@ struct ITerm2TerminalView: View {
             .padding(8)
         }
         .background(defaultBackground)
-        .cornerRadius(8)
     }
 }
 
