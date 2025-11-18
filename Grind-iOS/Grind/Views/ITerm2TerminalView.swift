@@ -69,7 +69,7 @@ struct ITerm2TerminalView: View {
 
     private var resolvedStyledLines: [ITerm2StyledLine]? {
         if let styled = session.styledLines, !styled.isEmpty {
-            return styled
+            return removeTrailingBlankStyledLines(styled)
         }
         if let screenLines = session.screenLines, !screenLines.isEmpty {
             let trimmedLines = removeTrailingBlankLines(screenLines)
@@ -78,13 +78,41 @@ struct ITerm2TerminalView: View {
         return nil
     }
 
-    /// Remove trailing blank lines from the array
-    private func removeTrailingBlankLines(_ lines: [String]) -> [String] {
+    /// Remove trailing blank lines from styled lines array
+    private func removeTrailingBlankStyledLines(_ lines: [ITerm2StyledLine]) -> [ITerm2StyledLine] {
         var result = lines
-        while let last = result.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
+        while let last = result.last, isStyledLineBlank(last) {
             result.removeLast()
         }
         return result
+    }
+
+    /// Check if a styled line is blank (contains only whitespace or invisible characters)
+    private func isStyledLineBlank(_ line: ITerm2StyledLine) -> Bool {
+        // Check if all characters are whitespace or invisible
+        return line.characters.allSatisfy { char in
+            let trimmed = char.char.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Consider it blank if:
+            // 1. Empty after trimming whitespace
+            // 2. Contains only null characters or other control characters
+            return trimmed.isEmpty || trimmed.allSatisfy { $0.isWhitespace || $0.unicodeScalars.allSatisfy { $0.value < 32 } }
+        }
+    }
+
+    /// Remove trailing blank lines from string array
+    private func removeTrailingBlankLines(_ lines: [String]) -> [String] {
+        var result = lines
+        while let last = result.last, isStringLineBlank(last) {
+            result.removeLast()
+        }
+        return result
+    }
+
+    /// Check if a string line is blank (contains only whitespace or invisible characters)
+    private func isStringLineBlank(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Empty after trimming, or contains only control characters (ASCII < 32)
+        return trimmed.isEmpty || trimmed.allSatisfy { $0.isWhitespace || $0.unicodeScalars.allSatisfy { $0.value < 32 } }
     }
 
     var body: some View {

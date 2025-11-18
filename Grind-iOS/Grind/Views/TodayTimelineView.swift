@@ -61,29 +61,6 @@ struct TodayTimelineView: View {
             }
             .frame(height: 40)
             .cornerRadius(4)
-
-            // Legend
-            HStack(spacing: 16) {
-                HStack(spacing: 6) {
-                    Rectangle()
-                        .fill(Color.blue)
-                        .frame(width: 16, height: 16)
-                        .cornerRadius(2)
-                    Text("Active")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                HStack(spacing: 6) {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 16, height: 16)
-                        .cornerRadius(2)
-                    Text("Inactive")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
         }
     }
 
