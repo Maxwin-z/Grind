@@ -203,6 +203,33 @@ struct ITerm2DetailView: View {
     }
 }
 
+struct StatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundColor(color)
+
+            Text(value)
+                .font(.title3)
+                .fontWeight(.semibold)
+
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(16)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+}
+
 struct SessionInfoRow: View {
     let icon: String
     let label: String
