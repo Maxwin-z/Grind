@@ -20,22 +20,28 @@ class NetworkService: ObservableObject {
     private var connections: [NWConnection] = []
     private let queue = DispatchQueue(label: "me.maxwin.Grind.network")
     private let dataSharingPreferences = AppDataSharingPreferences.shared
+    private let categoryRepository = AppCategoryRepository()
     private var selectionObserver: NSObjectProtocol?
     private var timeBlocksObserver: NSObjectProtocol?
+    private var currentSelectionSnapshot = AppDataSharingSnapshot.empty
 
     @Published var isRunning = false
     @Published var connectedClients = 0
     @Published var serverPort: UInt16 = 9527
 
     private init() {
+        currentSelectionSnapshot = dataSharingPreferences.snapshot()
+
         selectionObserver = NotificationCenter.default.addObserver(
             forName: .appDataSharingSelectionChanged,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.sendSelectedAppsList()
-            self?.sendHistoricalStatsToAllConnections()
-            self?.sendTodayTimeBlocksToAllConnections()
+            guard let self = self else { return }
+            self.refreshSelectionSnapshot()
+            self.sendSelectedAppsList()
+            self.sendHistoricalStatsToAllConnections()
+            self.sendTodayTimeBlocksToAllConnections()
         }
 
         timeBlocksObserver = NotificationCenter.default.addObserver(
@@ -142,6 +148,8 @@ class NetworkService: ObservableObject {
     }
 
     private func handleNewConnection(_ connection: NWConnection) {
+        refreshSelectionSnapshot()
+
         connection.stateUpdateHandler = { [weak self] state in
             Task { @MainActor [weak self] in
                 self?.handleConnectionStateChange(connection, state: state)
@@ -203,7 +211,8 @@ class NetworkService: ObservableObject {
     }
 
     private func sendHistoricalStats(to connection: NWConnection) {
-        let selectionSnapshot = dataSharingPreferences.snapshot()
+        let selectionSnapshot = currentSelectionSnapshot
+        let maxHistoricalDays = 7
 
         Task {
             do {
@@ -216,36 +225,37 @@ class NetworkService: ObservableObject {
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "yyyy-MM-dd"
 
-                // Ensure we have aggregated stats for recent history
-                let maxHistoricalDays = 30
+                // Ensure we have aggregated stats for the weekly window
                 do {
                     try ensureDailyStatsCoverage(days: maxHistoricalDays, referenceDate: now, calendar: calendar)
                 } catch {
                 }
 
-        // Fetch daily stats for last 30 days
-        var dailyStats: [DailyStatsData] = []
-        var dailyAppBreakdown: [DailyAppBreakdownData] = []
+                // Fetch daily stats for the last 7 days
+                var dailyStats: [DailyStatsData] = []
+                var dailyAppBreakdown: [DailyAppBreakdownData] = []
 
-        for dayOffset in stride(from: maxHistoricalDays - 1, through: 0, by: -1) {
-            guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: now) else { continue }
-            let payload = try await self.buildDailyStatsPayload(
-                for: date,
-                dateFormatter: dateFormatter,
-                selectionSnapshot: selectionSnapshot,
-                db: db
-            )
-            dailyStats.append(payload.stats)
-            dailyAppBreakdown.append(payload.breakdown)
-        }
+                for dayOffset in stride(from: maxHistoricalDays - 1, through: 0, by: -1) {
+                    guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: now) else { continue }
+                    let payload = try await self.buildDailyStatsPayload(
+                        for: date,
+                        dateFormatter: dateFormatter,
+                        selectionSnapshot: selectionSnapshot,
+                        db: db
+                    )
+                    dailyStats.append(payload.stats)
+                    dailyAppBreakdown.append(payload.breakdown)
+                }
 
-                // Fetch top apps (last 7 days)
-                let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now)!
-                let sevenDaysAgoString = dateFormatter.string(from: sevenDaysAgo)
+                // Fetch top apps (weekly window)
+                guard let weeklyStart = calendar.date(byAdding: .day, value: -(maxHistoricalDays - 1), to: now) else {
+                    return
+                }
+                let weeklyStartString = dateFormatter.string(from: weeklyStart)
 
                 let topAppsStats = try await db.read { db in
                     try DailyStats
-                        .filter(Column("date") >= sevenDaysAgoString)
+                        .filter(Column("date") >= weeklyStartString)
                         .order(Column("totalDuration").desc)
                         .limit(20)
                         .fetchAll(db)
@@ -295,8 +305,9 @@ class NetworkService: ObservableObject {
         }
     }
 
+
     private func sendTodayTimeBlocks(to connection: NWConnection) {
-        let selectionSnapshot = dataSharingPreferences.snapshot()
+        let selectionSnapshot = currentSelectionSnapshot
 
         Task {
             do {
@@ -332,7 +343,7 @@ class NetworkService: ObservableObject {
     }
 
     private func sendDailyStatsUpdate(for date: Date = Date(), to connection: NWConnection? = nil) {
-        let selectionSnapshot = dataSharingPreferences.snapshot()
+        let selectionSnapshot = currentSelectionSnapshot
 
         Task {
             do {
@@ -364,7 +375,7 @@ class NetworkService: ObservableObject {
     }
 
     private func sendSelectedAppsList(to connection: NWConnection? = nil) {
-        let selectedApps = dataSharingPreferences.selectedAppsList()
+        let selectedApps = currentSelectionSnapshot.apps
         let appData = selectedApps.map {
             SelectedAppData(
                 bundleIdentifier: $0.bundleIdentifier,
@@ -470,10 +481,10 @@ class NetworkService: ObservableObject {
             totalKeystrokes: totalKeystrokes,
             totalMouseMovements: totalMouseMovements,
             totalMouseClicks: totalMouseClicks,
-            appCount: filteredStats.count
+            appCount: selectionSnapshot.apps.count
         )
 
-        let appMetrics = filteredStats.map { stat in
+        var appMetrics = filteredStats.map { stat in
             let bundleId = self.getBundleId(forAppName: stat.appName)
             return DailyAppMetricsData(
                 appName: stat.appName,
@@ -484,7 +495,41 @@ class NetworkService: ObservableObject {
                 colorHex: self.getColorHex(bundleId: bundleId, appName: stat.appName)
             )
         }
-        .sorted { $0.duration > $1.duration }
+        .sorted { lhs, rhs in
+            if lhs.duration == rhs.duration {
+                return lhs.appName < rhs.appName
+            }
+            return lhs.duration > rhs.duration
+        }
+
+        var existingAppNames = Set(appMetrics.map { $0.appName.lowercased() })
+
+        for app in selectionSnapshot.apps {
+            let normalizedName = app.appName.lowercased()
+            if existingAppNames.contains(normalizedName) {
+                continue
+            }
+
+            let bundleId = app.bundleIdentifier
+            let category = getCategoryName(bundleId: bundleId, appName: app.appName)
+            let metric = DailyAppMetricsData(
+                appName: app.appName,
+                bundleId: bundleId,
+                duration: 0,
+                keystrokes: 0,
+                category: category,
+                colorHex: app.accentColorHex
+            )
+            appMetrics.append(metric)
+            existingAppNames.insert(normalizedName)
+        }
+
+        appMetrics.sort { lhs, rhs in
+            if lhs.duration == rhs.duration {
+                return lhs.appName < rhs.appName
+            }
+            return lhs.duration > rhs.duration
+        }
 
         let breakdown = DailyAppBreakdownData(
             date: dateString,
@@ -499,6 +544,10 @@ class NetworkService: ObservableObject {
             if let error = error {
             }
         })
+    }
+
+    private func refreshSelectionSnapshot() {
+        currentSelectionSnapshot = dataSharingPreferences.snapshot()
     }
 
     // MARK: - Public Broadcasting Methods
@@ -620,25 +669,32 @@ class NetworkService: ObservableObject {
     }
 
     private func shouldShareApp(bundleId: String?, appName: String?) -> Bool {
-        dataSharingPreferences.isAppSelected(bundleId: bundleId, appName: appName)
+        currentSelectionSnapshot.isAppSelected(bundleId: bundleId, appName: appName)
     }
 
     /// Get color hex for an app (from app_categories or generate)
     private func getBundleId(forAppName appName: String) -> String? {
-        let selectedApps = dataSharingPreferences.selectedAppsList()
-        return selectedApps.first(where: { $0.appName == appName })?.bundleIdentifier
+        return currentSelectionSnapshot.apps.first {
+            $0.appName.caseInsensitiveCompare(appName) == .orderedSame
+        }?.bundleIdentifier
     }
 
     private func getColorHex(bundleId: String?, appName: String) -> String? {
         // Try to get from app_categories first
-        if let bundleId = bundleId, !bundleId.isEmpty {
-            let repository = AppCategoryRepository()
-            if let category = try? repository.getCategory(forBundleId: bundleId) {
-                return "#" + category.color
-            }
+        if let bundleId = bundleId, !bundleId.isEmpty,
+           let category = try? categoryRepository.getCategory(forBundleId: bundleId) {
+            return "#" + category.color
         }
 
         // Fallback to generator
         return AppColorGenerator.colorHex(forBundleIdentifier: bundleId ?? "", appName: appName)
+    }
+
+    private func getCategoryName(bundleId: String?, appName: String) -> String {
+        if let bundleId = bundleId, !bundleId.isEmpty,
+           let category = try? categoryRepository.getCategory(forBundleId: bundleId) {
+            return category.category
+        }
+        return "Other"
     }
 }

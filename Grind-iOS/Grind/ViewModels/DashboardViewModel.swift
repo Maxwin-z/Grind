@@ -38,9 +38,6 @@ class DashboardViewModel: ObservableObject {
     private let networkClient = NetworkClient.shared
     private var cancellables = Set<AnyCancellable>()
     private var latestHistoricalData: HistoricalStatsData?
-    private var selectedAppNames: Set<String> = []
-    private var selectedBundleIds: Set<String> = []
-    private var didReceiveSelectionSnapshot = false
 
     // KPM calculation
     private var keystrokeTimestamps: [Date] = []
@@ -79,12 +76,7 @@ class DashboardViewModel: ObservableObject {
         networkClient.$selectedApps
             .sink { [weak self] apps in
                 guard let self = self else { return }
-                self.selectedAppNames = Set(apps.map { $0.appName })
-                self.selectedBundleIds = Set(apps.map { $0.bundleIdentifier })
                 self.appSelectionMetadata = Dictionary(uniqueKeysWithValues: apps.map { ($0.appName, $0) })
-                self.didReceiveSelectionSnapshot = true
-                self.logAppMetadata(apps)
-                self.recalculateHistoricalCharts()
             }
             .store(in: &cancellables)
 
@@ -159,17 +151,12 @@ class DashboardViewModel: ObservableObject {
 
     private func recalculateHistoricalCharts() {
         guard let data = latestHistoricalData else { return }
-        let filterBundleIds = didReceiveSelectionSnapshot ? selectedBundleIds : nil
-        processHistoricalData(data, filterBundleIds: filterBundleIds)
+        processHistoricalData(data)
     }
 
-    private func processHistoricalData(_ data: HistoricalStatsData, filterBundleIds: Set<String>?) {
+    private func processHistoricalData(_ data: HistoricalStatsData) {
         print("📥 Processing historical data:")
         print("   Breakdown days: \(data.dailyAppBreakdown?.count ?? 0)")
-        print("   Filter enabled: \(filterBundleIds != nil)")
-        if let filterBundleIds = filterBundleIds {
-            print("   Filter bundle IDs (\(filterBundleIds.count)): \(filterBundleIds.sorted().joined(separator: ", "))")
-        }
         if let breakdown = data.dailyAppBreakdown?.prefix(3) {
             for (index, dayBreakdown) in breakdown.enumerated() {
                 print("   Day \(index + 1) (\(dayBreakdown.date)): \(dayBreakdown.apps.count) apps")
@@ -189,63 +176,21 @@ class DashboardViewModel: ObservableObject {
         var perDayKeystrokes: [String: [DailyKeystrokeByApp]] = [:]
 
         if let breakdown = data.dailyAppBreakdown {
-            var allAppsInBreakdown = Set<String>()
-            var filteredOutApps = Set<String>()
-
             for dayBreakdown in breakdown {
                 let sortedActivityApps = dayBreakdown.apps.sorted { $0.duration > $1.duration }
-
-                // Track all apps before filtering
-                for app in sortedActivityApps {
-                    allAppsInBreakdown.insert(app.appName)
-                    if !shouldIncludeApp(bundleId: app.bundleId, appName: app.appName, filterBundleIds: filterBundleIds) {
-                        filteredOutApps.insert(app.appName)
-                    }
+                let activityApps = sortedActivityApps.map { metric in
+                    DailyActivityByApp(appName: metric.appName, duration: metric.duration)
                 }
-
-                let activityApps = sortedActivityApps
-                    .filter { shouldIncludeApp(bundleId: $0.bundleId, appName: $0.appName, filterBundleIds: filterBundleIds) }
-                    .map { metric in
-                        DailyActivityByApp(appName: metric.appName, duration: metric.duration)
-                    }
                 let sortedKeystrokeApps = dayBreakdown.apps.sorted { $0.keystrokes > $1.keystrokes }
-                let keystrokeApps = sortedKeystrokeApps
-                    .filter { shouldIncludeApp(bundleId: $0.bundleId, appName: $0.appName, filterBundleIds: filterBundleIds) }
-                    .map { metric in
-                        DailyKeystrokeByApp(appName: metric.appName, keystrokes: metric.keystrokes)
-                    }
+                let keystrokeApps = sortedKeystrokeApps.map { metric in
+                    DailyKeystrokeByApp(appName: metric.appName, keystrokes: metric.keystrokes)
+                }
 
                 if !activityApps.isEmpty {
                     perDayActivity[dayBreakdown.date] = activityApps
                 }
                 if !keystrokeApps.isEmpty {
                     perDayKeystrokes[dayBreakdown.date] = keystrokeApps
-                }
-            }
-
-            // Log filtering results
-            if filterBundleIds != nil && !filteredOutApps.isEmpty {
-                print("⚠️  Apps filtered out (\(filteredOutApps.count)):")
-                for appName in filteredOutApps.sorted() {
-                    print("   ❌ '\(appName)' - bundle ID not in selected apps list")
-                }
-                print("   All apps in breakdown: \(allAppsInBreakdown.sorted().joined(separator: ", "))")
-            }
-        }
-
-        // Fallback to totals if breakdown missing so the charts never go empty
-        for dayStats in recentStats {
-            let date = dayStats.date
-            if filterBundleIds == nil {
-                if perDayActivity[date]?.isEmpty ?? true {
-                    perDayActivity[date] = [
-                        DailyActivityByApp(appName: "Total", duration: dayStats.totalSeconds)
-                    ]
-                }
-                if perDayKeystrokes[date]?.isEmpty ?? true {
-                    perDayKeystrokes[date] = [
-                        DailyKeystrokeByApp(appName: "Total", keystrokes: dayStats.totalKeystrokes)
-                    ]
                 }
             }
         }
@@ -357,9 +302,6 @@ class DashboardViewModel: ObservableObject {
         // Reconnect to fetch latest data
         networkClient.disconnect()
         networkClient.startServiceDiscovery()
-        didReceiveSelectionSnapshot = false
-        selectedAppNames = []
-        selectedBundleIds = []
     }
 
     // MARK: - KPM Calculation
@@ -398,28 +340,9 @@ class DashboardViewModel: ObservableObject {
         }
     }
 
-    private func shouldIncludeApp(bundleId: String?, appName: String, filterBundleIds: Set<String>?) -> Bool {
-        guard let filterBundleIds = filterBundleIds else { return true }
-
-        // Prefer bundle ID matching (most reliable)
-        if let bundleId = bundleId, !bundleId.isEmpty {
-            return filterBundleIds.contains(bundleId)
-        }
-
-        // Fallback to app name matching (case-insensitive) for apps without bundle ID
-        return selectedAppNames.contains { $0.caseInsensitiveCompare(appName) == .orderedSame }
-    }
-
     private func logChartTables() {
         logActivityTable()
         logKeystrokeTable()
-    }
-
-    private func logAppMetadata(_ apps: [SelectedAppData]) {
-        guard !apps.isEmpty else { return }
-        for app in apps.sorted(by: { $0.appName < $1.appName }) {
-            let hasIcon = app.iconPNGData == nil ? "no" : "yes"
-        }
     }
 
     private func logActivityTable() {

@@ -126,9 +126,14 @@ final class AppDataSharingPreferences: ObservableObject {
 
     /// Snapshot current selection state for use off the main actor.
     func snapshot() -> AppDataSharingSnapshot {
-        AppDataSharingSnapshot(
-            excludedBundleIds: excludedBundleIds,
-            excludedAppNames: excludedAppNames
+        let selectedApps = selectedAppsList()
+        let selectedBundleIds = Set(selectedApps.map { $0.bundleIdentifier })
+        let selectedAppNames = Set(selectedApps.compactMap { normalized($0.appName) })
+
+        return AppDataSharingSnapshot(
+            selectedBundleIds: selectedBundleIds,
+            selectedAppNames: selectedAppNames,
+            apps: selectedApps
         )
     }
 
@@ -186,19 +191,26 @@ final class AppDataSharingPreferences: ObservableObject {
 
 /// Immutable snapshot of the app sharing preferences for off-main-thread consumers.
 struct AppDataSharingSnapshot {
-    let excludedBundleIds: Set<String>
-    let excludedAppNames: Set<String>
+    let selectedBundleIds: Set<String>
+    let selectedAppNames: Set<String>
+    let apps: [AppSelectionInfo]
+
+    static let empty = AppDataSharingSnapshot(selectedBundleIds: [], selectedAppNames: [], apps: [])
 
     func isAppSelected(bundleId: String?, appName: String?) -> Bool {
-        if let bundleId = bundleId, excludedBundleIds.contains(bundleId) {
+        guard !selectedBundleIds.isEmpty || !selectedAppNames.isEmpty || !apps.isEmpty else {
             return false
         }
 
-        if let normalizedName = normalized(appName), excludedAppNames.contains(normalizedName) {
-            return false
+        if let bundleId = bundleId, selectedBundleIds.contains(bundleId) {
+            return true
         }
 
-        return true
+        if let normalizedName = normalized(appName), selectedAppNames.contains(normalizedName) {
+            return true
+        }
+
+        return false
     }
 
     private func normalized(_ appName: String?) -> String? {
