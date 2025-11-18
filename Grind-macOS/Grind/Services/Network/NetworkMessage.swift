@@ -88,6 +88,7 @@ struct DailyAppBreakdownData: Codable {
 
 struct DailyAppMetricsData: Codable {
     let appName: String
+    let bundleId: String?
     let duration: Int
     let keystrokes: Int
     let category: String

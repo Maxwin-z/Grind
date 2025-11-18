@@ -203,6 +203,7 @@ struct DailyAppBreakdownData: Codable, Identifiable {
 struct DailyAppMetricsData: Codable, Identifiable {
     var id: UUID { UUID() }  // Computed property, not decoded
     let appName: String
+    let bundleId: String?
     let duration: Int
     let keystrokes: Int
     let category: String

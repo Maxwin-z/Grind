@@ -218,6 +218,21 @@ class NetworkClient: NSObject, ObservableObject {
             iterm2Sessions = data.sessions
 
         case .selectedApps(let data):
+            print("📥 Received selected apps list from server:")
+            print("   Total apps: \(data.apps.count)")
+            if data.apps.count > 0 {
+                let appNames = data.apps.prefix(10).map { $0.appName }.joined(separator: ", ")
+                print("   Apps: \(appNames)\(data.apps.count > 10 ? "... and \(data.apps.count - 10) more" : "")")
+                print("   App details:")
+                for (index, app) in data.apps.prefix(5).enumerated() {
+                    let hasIcon = app.iconPNGData != nil ? "✅" : "❌"
+                    print("   \(index + 1). \(app.appName) (\(app.bundleIdentifier))")
+                    print("      Color: \(app.accentColorHex), Icon: \(hasIcon)")
+                }
+                if data.apps.count > 5 {
+                    print("   ... and \(data.apps.count - 5) more apps")
+                }
+            }
             selectedApps = data.apps
 
         case .error(let data):

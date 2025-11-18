@@ -54,6 +54,8 @@ final class AppDataSharingPreferences: ObservableObject {
     func setAppSelected(bundleId: String?, appName: String?, isSelected: Bool) {
         let changed = applySelectionChange(bundleId: bundleId, appName: appName, isSelected: isSelected)
         if changed {
+            let action = isSelected ? "✅ Selected" : "❌ Deselected"
+            print("\(action) app: \(appName ?? "Unknown") (\(bundleId ?? "no bundle ID"))")
             persistSelections()
             notifySelectionChanged()
         }
@@ -68,13 +70,17 @@ final class AppDataSharingPreferences: ObservableObject {
     /// Update selection state for a batch of apps.
     func setApps(_ apps: [MacApp], isSelected: Bool) {
         var didChange = false
+        var changedApps: [String] = []
         for app in apps {
             if applySelectionChange(bundleId: app.bundleIdentifier, appName: app.name, isSelected: isSelected) {
                 didChange = true
+                changedApps.append(app.name)
             }
         }
 
         if didChange {
+            let action = isSelected ? "✅ Selected" : "❌ Deselected"
+            print("\(action) \(changedApps.count) apps: \(changedApps.prefix(5).joined(separator: ", "))\(changedApps.count > 5 ? "..." : "")")
             persistSelections()
             notifySelectionChanged()
         }

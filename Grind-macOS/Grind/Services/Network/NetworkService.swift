@@ -256,8 +256,9 @@ class NetworkService: ObservableObject {
                 }
 
                 let topApps = filteredTopAppsStats.map { stats in
-                    AppStatsData(
-                        bundleIdentifier: "unknown", // Not stored in DailyStats
+                    let bundleId = self.getBundleId(forAppName: stats.appName) ?? "unknown"
+                    return AppStatsData(
+                        bundleIdentifier: bundleId,
                         appName: stats.appName,
                         iconPath: nil,
                         totalSeconds: stats.totalDuration,
@@ -265,7 +266,7 @@ class NetworkService: ObservableObject {
                         mouseMovements: stats.mouseMovementCount,
                         mouseClicks: stats.mouseClickCount,
                         lastActive: stats.lastActive,
-                        colorHex: self.getColorHex(bundleId: nil, appName: stats.appName)
+                        colorHex: self.getColorHex(bundleId: bundleId == "unknown" ? nil : bundleId, appName: stats.appName)
                     )
                 }
 
@@ -274,6 +275,19 @@ class NetworkService: ObservableObject {
                     topApps: topApps,
                     dailyAppBreakdown: dailyAppBreakdown
                 )
+
+                // Log breakdown details
+                print("📤 Sending historical stats to client:")
+                print("   Days of data: \(dailyAppBreakdown.count)")
+                for (index, dayBreakdown) in dailyAppBreakdown.prefix(3).enumerated() {
+                    print("   Day \(index + 1) (\(dayBreakdown.date)): \(dayBreakdown.apps.count) apps")
+                    let appNames = dayBreakdown.apps.prefix(10).map { $0.appName }.joined(separator: ", ")
+                    print("      Apps: \(appNames)\(dayBreakdown.apps.count > 10 ? "... and \(dayBreakdown.apps.count - 10) more" : "")")
+                }
+                if dailyAppBreakdown.count > 3 {
+                    print("   ... and \(dailyAppBreakdown.count - 3) more days")
+                }
+
                 sendMessage(message, to: connection)
 
             } catch {
@@ -358,6 +372,14 @@ class NetworkService: ObservableObject {
                 accentColorHex: $0.accentColorHex,
                 iconPNGData: $0.iconPNGData
             )
+        }
+
+        let target = connection != nil ? "specific client" : "\(connections.count) client(s)"
+        print("📤 Sending selected apps list to \(target):")
+        print("   Total apps: \(appData.count)")
+        if appData.count > 0 {
+            let appNames = appData.prefix(10).map { $0.appName }.joined(separator: ", ")
+            print("   Apps: \(appNames)\(appData.count > 10 ? "... and \(appData.count - 10) more" : "")")
         }
 
         let message = SelectedAppsMessage(apps: appData)
@@ -452,12 +474,14 @@ class NetworkService: ObservableObject {
         )
 
         let appMetrics = filteredStats.map { stat in
-            DailyAppMetricsData(
+            let bundleId = self.getBundleId(forAppName: stat.appName)
+            return DailyAppMetricsData(
                 appName: stat.appName,
+                bundleId: bundleId,
                 duration: stat.totalDuration,
                 keystrokes: stat.keystrokeCount,
                 category: stat.category,
-                colorHex: self.getColorHex(bundleId: nil, appName: stat.appName)
+                colorHex: self.getColorHex(bundleId: bundleId, appName: stat.appName)
             )
         }
         .sorted { $0.duration > $1.duration }
@@ -600,6 +624,11 @@ class NetworkService: ObservableObject {
     }
 
     /// Get color hex for an app (from app_categories or generate)
+    private func getBundleId(forAppName appName: String) -> String? {
+        let selectedApps = dataSharingPreferences.selectedAppsList()
+        return selectedApps.first(where: { $0.appName == appName })?.bundleIdentifier
+    }
+
     private func getColorHex(bundleId: String?, appName: String) -> String? {
         // Try to get from app_categories first
         if let bundleId = bundleId, !bundleId.isEmpty {

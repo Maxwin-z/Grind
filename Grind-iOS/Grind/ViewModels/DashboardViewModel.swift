@@ -39,6 +39,7 @@ class DashboardViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var latestHistoricalData: HistoricalStatsData?
     private var selectedAppNames: Set<String> = []
+    private var selectedBundleIds: Set<String> = []
     private var didReceiveSelectionSnapshot = false
 
     // KPM calculation
@@ -79,6 +80,7 @@ class DashboardViewModel: ObservableObject {
             .sink { [weak self] apps in
                 guard let self = self else { return }
                 self.selectedAppNames = Set(apps.map { $0.appName })
+                self.selectedBundleIds = Set(apps.map { $0.bundleIdentifier })
                 self.appSelectionMetadata = Dictionary(uniqueKeysWithValues: apps.map { ($0.appName, $0) })
                 self.didReceiveSelectionSnapshot = true
                 self.logAppMetadata(apps)
@@ -157,11 +159,24 @@ class DashboardViewModel: ObservableObject {
 
     private func recalculateHistoricalCharts() {
         guard let data = latestHistoricalData else { return }
-        let filterNames = didReceiveSelectionSnapshot ? selectedAppNames : nil
-        processHistoricalData(data, filterNames: filterNames)
+        let filterBundleIds = didReceiveSelectionSnapshot ? selectedBundleIds : nil
+        processHistoricalData(data, filterBundleIds: filterBundleIds)
     }
 
-    private func processHistoricalData(_ data: HistoricalStatsData, filterNames: Set<String>?) {
+    private func processHistoricalData(_ data: HistoricalStatsData, filterBundleIds: Set<String>?) {
+        print("📥 Processing historical data:")
+        print("   Breakdown days: \(data.dailyAppBreakdown?.count ?? 0)")
+        print("   Filter enabled: \(filterBundleIds != nil)")
+        if let filterBundleIds = filterBundleIds {
+            print("   Filter bundle IDs (\(filterBundleIds.count)): \(filterBundleIds.sorted().joined(separator: ", "))")
+        }
+        if let breakdown = data.dailyAppBreakdown?.prefix(3) {
+            for (index, dayBreakdown) in breakdown.enumerated() {
+                print("   Day \(index + 1) (\(dayBreakdown.date)): \(dayBreakdown.apps.count) apps")
+                let appNames = dayBreakdown.apps.prefix(10).map { $0.appName }.joined(separator: ", ")
+                print("      Apps: \(appNames)\(dayBreakdown.apps.count > 10 ? "... and \(dayBreakdown.apps.count - 10) more" : "")")
+            }
+        }
 
         // Process last 7 days for charts
         let last7Days = getLast7Days()
@@ -174,16 +189,28 @@ class DashboardViewModel: ObservableObject {
         var perDayKeystrokes: [String: [DailyKeystrokeByApp]] = [:]
 
         if let breakdown = data.dailyAppBreakdown {
+            var allAppsInBreakdown = Set<String>()
+            var filteredOutApps = Set<String>()
+
             for dayBreakdown in breakdown {
                 let sortedActivityApps = dayBreakdown.apps.sorted { $0.duration > $1.duration }
+
+                // Track all apps before filtering
+                for app in sortedActivityApps {
+                    allAppsInBreakdown.insert(app.appName)
+                    if !shouldIncludeApp(bundleId: app.bundleId, appName: app.appName, filterBundleIds: filterBundleIds) {
+                        filteredOutApps.insert(app.appName)
+                    }
+                }
+
                 let activityApps = sortedActivityApps
-                    .filter { shouldIncludeApp(named: $0.appName, filterNames: filterNames) }
+                    .filter { shouldIncludeApp(bundleId: $0.bundleId, appName: $0.appName, filterBundleIds: filterBundleIds) }
                     .map { metric in
                         DailyActivityByApp(appName: metric.appName, duration: metric.duration)
                     }
                 let sortedKeystrokeApps = dayBreakdown.apps.sorted { $0.keystrokes > $1.keystrokes }
                 let keystrokeApps = sortedKeystrokeApps
-                    .filter { shouldIncludeApp(named: $0.appName, filterNames: filterNames) }
+                    .filter { shouldIncludeApp(bundleId: $0.bundleId, appName: $0.appName, filterBundleIds: filterBundleIds) }
                     .map { metric in
                         DailyKeystrokeByApp(appName: metric.appName, keystrokes: metric.keystrokes)
                     }
@@ -195,12 +222,21 @@ class DashboardViewModel: ObservableObject {
                     perDayKeystrokes[dayBreakdown.date] = keystrokeApps
                 }
             }
+
+            // Log filtering results
+            if filterBundleIds != nil && !filteredOutApps.isEmpty {
+                print("⚠️  Apps filtered out (\(filteredOutApps.count)):")
+                for appName in filteredOutApps.sorted() {
+                    print("   ❌ '\(appName)' - bundle ID not in selected apps list")
+                }
+                print("   All apps in breakdown: \(allAppsInBreakdown.sorted().joined(separator: ", "))")
+            }
         }
 
         // Fallback to totals if breakdown missing so the charts never go empty
         for dayStats in recentStats {
             let date = dayStats.date
-            if filterNames == nil {
+            if filterBundleIds == nil {
                 if perDayActivity[date]?.isEmpty ?? true {
                     perDayActivity[date] = [
                         DailyActivityByApp(appName: "Total", duration: dayStats.totalSeconds)
@@ -224,6 +260,16 @@ class DashboardViewModel: ObservableObject {
             let apps = perDayKeystrokes[dateStr] ?? []
             return DailyKeystrokeChartData(date: dateStr, appKeystrokes: apps)
         }
+
+        // Log final app counts
+        let allActivityApps = Set(dailyActivityData.flatMap { $0.appActivities.map(\.appName) })
+        let allKeystrokeApps = Set(dailyKeystrokeData.flatMap { $0.appKeystrokes.map(\.appName) })
+        let allApps = allActivityApps.union(allKeystrokeApps).sorted()
+        print("✅ Processed chart data:")
+        print("   Total unique apps in activity chart: \(allActivityApps.count)")
+        print("   Total unique apps in keystroke chart: \(allKeystrokeApps.count)")
+        print("   Combined unique apps: \(allApps.count)")
+        print("   App list: \(allApps.joined(separator: ", "))")
 
         logChartTables()
     }
@@ -313,6 +359,7 @@ class DashboardViewModel: ObservableObject {
         networkClient.startServiceDiscovery()
         didReceiveSelectionSnapshot = false
         selectedAppNames = []
+        selectedBundleIds = []
     }
 
     // MARK: - KPM Calculation
@@ -351,9 +398,16 @@ class DashboardViewModel: ObservableObject {
         }
     }
 
-    private func shouldIncludeApp(named appName: String, filterNames: Set<String>?) -> Bool {
-        guard let filterNames = filterNames else { return true }
-        return filterNames.contains { $0.caseInsensitiveCompare(appName) == .orderedSame }
+    private func shouldIncludeApp(bundleId: String?, appName: String, filterBundleIds: Set<String>?) -> Bool {
+        guard let filterBundleIds = filterBundleIds else { return true }
+
+        // Prefer bundle ID matching (most reliable)
+        if let bundleId = bundleId, !bundleId.isEmpty {
+            return filterBundleIds.contains(bundleId)
+        }
+
+        // Fallback to app name matching (case-insensitive) for apps without bundle ID
+        return selectedAppNames.contains { $0.caseInsensitiveCompare(appName) == .orderedSame }
     }
 
     private func logChartTables() {
