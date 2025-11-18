@@ -78,34 +78,57 @@ struct ITerm2TerminalView: View {
     }
 
     var body: some View {
-        ScrollView([.horizontal, .vertical], showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 0) {
-                if let styledLines = resolvedStyledLines, !styledLines.isEmpty {
-                    // Render styled lines with full color support
-                    ForEach(Array(styledLines.enumerated()), id: \.offset) { index, line in
-                        TerminalLineView(line: line)
-                            .frame(height: terminalLineHeight)
+        ScrollViewReader { scrollProxy in
+            ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let styledLines = resolvedStyledLines, !styledLines.isEmpty {
+                        // Render styled lines with full color support
+                        ForEach(Array(styledLines.enumerated()), id: \.offset) { index, line in
+                            TerminalLineView(line: line)
+                                .frame(height: terminalLineHeight)
+                        }
+                        // Invisible anchor at bottom
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .id("bottom")
+                    } else if let screenLines = session.screenLines, !screenLines.isEmpty {
+                        // Fallback to plain text if no styled lines available
+                        ForEach(Array(screenLines.enumerated()), id: \.offset) { index, line in
+                            Text(line.isEmpty ? " " : line)
+                                .font(terminalFont)
+                                .foregroundColor(defaultForeground)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(height: terminalLineHeight)
+                        }
+                        // Invisible anchor at bottom
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .id("bottom")
+                    } else {
+                        // No content available
+                        Text("No terminal content available")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding()
                     }
-                } else if let screenLines = session.screenLines, !screenLines.isEmpty {
-                    // Fallback to plain text if no styled lines available
-                    ForEach(Array(screenLines.enumerated()), id: \.offset) { index, line in
-                        Text(line.isEmpty ? " " : line)
-                            .font(terminalFont)
-                            .foregroundColor(defaultForeground)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .frame(height: terminalLineHeight)
-                    }
-                } else {
-                    // No content available
-                    Text("No terminal content available")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding()
+                }
+                .padding(8)
+            }
+            .background(defaultBackground)
+            .defaultScrollAnchor(.bottomLeading)
+            .onChange(of: session.styledLines?.count ?? session.screenLines?.count ?? 0) { oldValue, newValue in
+                // Auto-scroll to bottom-left when content updates
+                DispatchQueue.main.async {
+                    scrollProxy.scrollTo("bottom", anchor: .bottomLeading)
                 }
             }
-            .padding(8)
+            .onAppear {
+                // Scroll to bottom-left on initial load
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    scrollProxy.scrollTo("bottom", anchor: .bottomLeading)
+                }
+            }
         }
-        .background(defaultBackground)
     }
 }
 
