@@ -67,10 +67,20 @@ struct ITerm2TerminalView: View {
     private let defaultForeground = Color.white
     private let defaultBackground = Color.black
 
+    private var resolvedStyledLines: [ITerm2StyledLine]? {
+        if let styled = session.styledLines, !styled.isEmpty {
+            return styled
+        }
+        if let screenLines = session.screenLines, !screenLines.isEmpty {
+            return ANSIColorParser.styledLines(from: screenLines)
+        }
+        return nil
+    }
+
     var body: some View {
         ScrollView([.horizontal, .vertical], showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
-                if let styledLines = session.styledLines, !styledLines.isEmpty {
+                if let styledLines = resolvedStyledLines, !styledLines.isEmpty {
                     // Render styled lines with full color support
                     ForEach(Array(styledLines.enumerated()), id: \.offset) { index, line in
                         TerminalLineView(line: line)

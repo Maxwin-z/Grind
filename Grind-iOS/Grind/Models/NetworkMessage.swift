@@ -335,7 +335,7 @@ struct ITerm2Session: Codable, Identifiable {
         case windowIndex
         case tabIndex
         case paneIndex
-        case screenLines
+        case screenLines = "screen_lines"
         case styledLines = "styled_lines"
     }
 }
