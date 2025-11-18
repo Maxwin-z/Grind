@@ -7,7 +7,6 @@
 
 import Foundation
 import Network
-import Logging
 import Combine
 import GRDB
 
@@ -16,7 +15,6 @@ import GRDB
 class NetworkService: ObservableObject {
     static let shared = NetworkService()
 
-    private let logger = Logger(label: "NetworkService")
     private let port: NWEndpoint.Port = 9527
     private var listener: NWListener?
     private var connections: [NWConnection] = []
@@ -65,7 +63,6 @@ class NetworkService: ObservableObject {
     /// Start the network server
     func startServer() {
         guard listener == nil else {
-            logger.warning("Server already running")
             return
         }
 
@@ -101,7 +98,6 @@ class NetworkService: ObservableObject {
             listener.start(queue: queue)
 
         } catch {
-            logger.error("❌ Failed to start server: \(error.localizedDescription)")
         }
     }
 
@@ -127,14 +123,13 @@ class NetworkService: ObservableObject {
         case .setup:
             break
 
-        case .waiting(let error):
-            logger.warning("⏳ Server waiting: \(error.localizedDescription)")
+        case .waiting:
+            break
 
         case .ready:
             isRunning = true
 
-        case .failed(let error):
-            logger.error("❌ Server failed: \(error.localizedDescription)")
+        case .failed:
             isRunning = false
             stopServer()
 
@@ -142,7 +137,7 @@ class NetworkService: ObservableObject {
             isRunning = false
 
         @unknown default:
-            logger.warning("Unknown listener state")
+            break
         }
     }
 
@@ -178,18 +173,17 @@ class NetworkService: ObservableObject {
         case .ready, .preparing:
             break
 
-        case .waiting(let error):
-            logger.warning("⏳ Connection waiting: \(connection.endpoint) - \(error.localizedDescription)")
+        case .waiting:
+            break
 
-        case .failed(let error):
-            logger.error("❌ Connection failed: \(connection.endpoint) - \(error.localizedDescription)")
+        case .failed:
             removeConnection(connection)
 
         case .cancelled:
             removeConnection(connection)
 
         @unknown default:
-            logger.warning("Unknown connection state for: \(connection.endpoint)")
+            break
         }
     }
 
@@ -214,7 +208,6 @@ class NetworkService: ObservableObject {
         Task {
             do {
                 guard let db = DatabaseManager.shared.getDatabase() else {
-                    logger.error("Database not initialized")
                     return
                 }
 
@@ -228,7 +221,6 @@ class NetworkService: ObservableObject {
                 do {
                     try ensureDailyStatsCoverage(days: maxHistoricalDays, referenceDate: now, calendar: calendar)
                 } catch {
-                    logger.error("Failed to ensure daily stats coverage: \(error.localizedDescription)")
                 }
 
         // Fetch daily stats for last 30 days
@@ -285,7 +277,6 @@ class NetworkService: ObservableObject {
                 sendMessage(message, to: connection)
 
             } catch {
-                logger.error("Failed to fetch historical stats: \(error.localizedDescription)")
             }
         }
     }
@@ -322,7 +313,6 @@ class NetworkService: ObservableObject {
                 sendMessage(message, to: connection)
 
             } catch {
-                logger.error("Failed to fetch today's time blocks: \(error.localizedDescription)")
             }
         }
     }
@@ -335,7 +325,6 @@ class NetworkService: ObservableObject {
                 try TimeBlockAggregator.shared.aggregateToDailyStatsSync(for: date)
 
                 guard let db = DatabaseManager.shared.getDatabase() else {
-                    logger.error("Database not initialized")
                     return
                 }
 
@@ -356,7 +345,6 @@ class NetworkService: ObservableObject {
                 sendMessage(message, to: connection)
 
             } catch {
-                logger.error("Failed to send daily stats update: \(error.localizedDescription)")
             }
         }
     }
@@ -421,7 +409,6 @@ class NetworkService: ObservableObject {
                 }
             }
         } catch {
-            logger.error("Failed to encode message: \(error.localizedDescription)")
         }
     }
 
@@ -486,7 +473,6 @@ class NetworkService: ObservableObject {
     private func sendData(_ data: Data, to connection: NWConnection) {
         connection.send(content: data, completion: .contentProcessed { error in
             if let error = error {
-                self.logger.error("❌ Send error to \(connection.endpoint): \(error.localizedDescription)")
             }
         })
     }

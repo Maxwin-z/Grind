@@ -110,7 +110,6 @@ class AppMonitor {
             let category = try categoryRepository.getCategory(forBundleId: bundleId)
             return category.category
         } catch {
-            print("⚠️  Error getting category for \(bundleId): \(error)")
             return "Other"
         }
     }

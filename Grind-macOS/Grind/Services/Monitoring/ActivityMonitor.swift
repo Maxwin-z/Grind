@@ -52,7 +52,6 @@ class ActivityMonitor {
     private func setupAppMonitor() {
         // Listen for app changes
         appMonitor.onAppChanged = { [weak self] newApp, oldApp in
-            print("🔄 App changed: \(oldApp?.name ?? "None") → \(newApp.name)")
             self?.onActivityUpdate?()
 
             // Handle iTerm2 monitoring
@@ -77,7 +76,6 @@ class ActivityMonitor {
     /// Start the activity monitoring loop
     func startMonitoring() {
         guard !isMonitoring else {
-            print("⚠️  Activity monitoring already running")
             return
         }
 
@@ -99,8 +97,6 @@ class ActivityMonitor {
 
         isMonitoring = true
         monitoringStartTime = Date()
-
-        print("✅ Activity monitoring started (polling every \(pollInterval)s)")
     }
 
     /// Stop the activity monitoring loop
@@ -122,9 +118,6 @@ class ActivityMonitor {
         heartbeatService.closeSession()
 
         isMonitoring = false
-
-        print("⏹️  Activity monitoring stopped")
-        print("📊 Total heartbeats recorded: \(totalHeartbeats)")
     }
 
     // MARK: - Input Monitoring
@@ -143,8 +136,6 @@ class ActivityMonitor {
 
         permissionRetryTimer?.invalidate()
         permissionRetryTimer = nil
-
-        print("✅ Input monitoring enabled")
     }
 
     private func schedulePermissionRetry() {
@@ -156,8 +147,6 @@ class ActivityMonitor {
         ) { [weak self] _ in
             self?.startInputMonitoringIfNeeded()
         }
-
-        print("⏳ Waiting for Accessibility permission to enable input monitoring")
     }
 
     // MARK: - Activity Check Loop
@@ -175,7 +164,6 @@ class ActivityMonitor {
         if idleTime > 120 {
             if heartbeatService.isContinuousSession() {
                 heartbeatService.closeSession()
-                print("💤 User away - session closed")
             }
             return
         }
@@ -188,10 +176,6 @@ class ActivityMonitor {
 
                 // Aggregate to time block
                 timeBlockAggregator.aggregateHeartbeat(heartbeat)
-
-                // Log activity
-                let activityLevel = idleDetector.getActivityLevel()
-                print("💓 Heartbeat #\(totalHeartbeats): \(heartbeat.appName) [\(activityLevel)]")
             }
         }
 

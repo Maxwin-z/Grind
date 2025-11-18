@@ -16,7 +16,6 @@ class ITerm2Service: ObservableObject {
     @Published var isLoading = false
     @Published var lastError: String?
 
-    private let logger = Logger(subsystem: "me.maxwin.Grind", category: "ITerm2Service")
     private let eventMonitorScriptPath: String
     private var monitorProcess: Process?
     private var outputBuffer = ""
@@ -40,11 +39,9 @@ class ITerm2Service: ObservableObject {
     /// Start the event-driven monitor for iTerm2
     func startMonitoring() {
         guard !isMonitoring else {
-            logger.info("Event monitor already running")
             return
         }
 
-        logger.info("Starting iTerm2 event monitor at: \(self.eventMonitorScriptPath)")
 
         let process = Process()
         let outputPipe = Pipe()
@@ -73,7 +70,6 @@ class ITerm2Service: ObservableObject {
             if data.isEmpty { return }
 
             if let error = String(data: data, encoding: .utf8) {
-                self.logger.debug("Monitor stderr: \(error.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
         }
 
@@ -87,9 +83,7 @@ class ITerm2Service: ObservableObject {
                 self.lastError = nil
             }
 
-            logger.info("iTerm2 event monitor started successfully")
         } catch {
-            logger.error("Failed to start event monitor: \(error.localizedDescription)")
             Task { @MainActor in
                 self.lastError = "Failed to start monitor: \(error.localizedDescription)"
                 self.isLoading = false
@@ -101,7 +95,6 @@ class ITerm2Service: ObservableObject {
     func stopMonitoring() {
         guard isMonitoring else { return }
 
-        logger.info("Stopping iTerm2 event monitor")
 
         monitorProcess?.terminate()
         monitorProcess?.waitUntilExit()
@@ -149,10 +142,7 @@ class ITerm2Service: ObservableObject {
                 self.broadcastSessionsToNetwork(info: info)
             }
 
-            logger.info("Updated iTerm2 info: \(info.windows.count) windows, \(info.allSessions.count) sessions")
         } catch {
-            logger.error("Failed to parse monitor output: \(error.localizedDescription)")
-            logger.debug("JSON that failed to parse: \(jsonString.prefix(500))")
             Task { @MainActor in
                 self.lastError = "Parse error: \(error.localizedDescription)"
             }

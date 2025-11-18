@@ -24,7 +24,6 @@ struct KeyboardVisualizerView: View {
     private let keyHighlightDuration: TimeInterval = 3.0
 
     var body: some View {
-        let _ = print("🎨 KeyboardVisualizer body re-render - currentKey: '\(currentKey)', modifiers: \(currentModifiers)")
         VStack(spacing: KeyboardLayout75.keySpacing * baseKeySize) {
             ForEach(Array(KeyboardLayout75.layout.enumerated()), id: \.offset) { rowIndex, row in
                 HStack(spacing: KeyboardLayout75.keySpacing * baseKeySize) {
@@ -43,11 +42,9 @@ struct KeyboardVisualizerView: View {
         }
         .padding(16)
         .onChange(of: keystrokeSequence) { oldValue, newValue in
-            print("🔄 onChange(keystrokeSequence) triggered: \(newValue)")
             handleKeyPress(key: currentKey, modifiers: currentModifiers)
         }
         .onAppear {
-            print("👀 KeyboardVisualizer onAppear - initial key: '\(currentKey)', modifiers: \(currentModifiers)")
             if !currentKey.isEmpty || !currentModifiers.isEmpty {
                 handleKeyPress(key: currentKey, modifiers: currentModifiers)
             }
@@ -60,13 +57,11 @@ struct KeyboardVisualizerView: View {
     // MARK: - Key Press Handling
 
     private func handleKeyPress(key: String, modifiers: [String]) {
-        print("🎹 KeyboardVisualizer handleKeyPress - key: '\(key)', modifiers: \(modifiers)")
 
         // Clear previous state
         pressedKeys.removeAll()
 
         guard !key.isEmpty || !modifiers.isEmpty else {
-            print("   ⚠️ No key or modifiers to animate, skipping.")
             return
         }
 
@@ -75,11 +70,9 @@ struct KeyboardVisualizerView: View {
         // Add modifiers
         for modifier in modifiers {
             let normalizedModifier = normalizeModifier(modifier)
-            print("   🔧 Normalized modifier '\(modifier)' -> '\(normalizedModifier)'")
 
             // Check if this key exists in layout
             let found = KeyboardLayout75.layout.flatMap { $0 }.first { $0.keyCode == normalizedModifier }
-            print("      Key found in layout: \(found != nil) (keyCode: '\(normalizedModifier)')")
 
             keysToAnimate.append(normalizedModifier)
         }
@@ -87,17 +80,13 @@ struct KeyboardVisualizerView: View {
         // Add main key (if not empty and not "Special")
         if !key.isEmpty && key != "Special" {
             let normalizedKey = normalizeKey(key)
-            print("   🔧 Normalized key '\(key)' -> '\(normalizedKey)'")
 
             // Check if this key exists in layout
             let found = KeyboardLayout75.layout.flatMap { $0 }.first { $0.keyCode == normalizedKey }
-            print("      Key found in layout: \(found != nil) (keyCode: '\(normalizedKey)')")
 
             keysToAnimate.append(normalizedKey)
         }
 
-        print("   ✅ Keys to animate: \(keysToAnimate)")
-        print("   📊 Current animatingKeys state: \(animatingKeys)")
 
         // Trigger animation for all keys
         for keyCode in keysToAnimate {
@@ -105,18 +94,14 @@ struct KeyboardVisualizerView: View {
             animateKeyPress(keyCode: keyCode)
         }
 
-        print("   📊 After animation animatingKeys state: \(animatingKeys)")
     }
 
     private func animateKeyPress(keyCode: String) {
-        print("   🎬 Animating key: '\(keyCode)'")
         animatingKeys[keyCode] = 1.0
-        print("      Highlight opacity set to \(animatingKeys[keyCode] ?? 0)")
 
         DispatchQueue.main.async {
             withAnimation(.easeOut(duration: keyHighlightDuration)) {
                 animatingKeys[keyCode] = 0.0
-                print("      Target opacity: 0.0 over \(keyHighlightDuration)s")
             }
         }
 
@@ -199,7 +184,6 @@ struct KeyboardVisualizerView: View {
             pressedKeys.remove(keyCode)
             animatingKeys.removeValue(forKey: keyCode)
             cleanupTasks.removeValue(forKey: keyCode)
-            print("      Animation complete for '\(keyCode)'")
         }
 
         cleanupTasks[keyCode] = workItem

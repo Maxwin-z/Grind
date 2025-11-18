@@ -84,7 +84,6 @@ class TimeBlockAggregator {
             guard let self = self else { return }
             do {
                 guard let db = DatabaseManager.shared.getDatabase() else {
-                    print("❌ Database not initialized")
                     return
                 }
 
@@ -108,7 +107,6 @@ class TimeBlockAggregator {
                         }
                     }
                 }
-                print("💾 Flushed \(blocksToSave.count) time blocks to database")
 
                 // Notify listeners (e.g., NetworkService) which calendar days changed
                 let calendar = Calendar.current
@@ -119,7 +117,7 @@ class TimeBlockAggregator {
                     userInfo: ["dates": affectedDates]
                 )
             } catch {
-                print("❌ Error flushing time blocks: \(error)")
+                // Silently handle error
             }
         }
 
@@ -137,9 +135,8 @@ class TimeBlockAggregator {
             guard let self = self else { return }
             do {
                 try self.performDailyAggregation(for: date)
-                print("✅ Daily stats aggregated for \(DailyStats.dateString(from: date))")
             } catch {
-                print("❌ Error aggregating daily stats: \(error)")
+                // Silently handle error
             }
         }
     }
@@ -147,7 +144,6 @@ class TimeBlockAggregator {
     /// Aggregate time blocks into daily stats synchronously
     func aggregateToDailyStatsSync(for date: Date) throws {
         try performDailyAggregation(for: date)
-        print("✅ Daily stats aggregated for \(DailyStats.dateString(from: date))")
     }
 
     /// Ensure a given date has daily stats rows by aggregating if needed
@@ -180,7 +176,6 @@ class TimeBlockAggregator {
         let blocks = try timeBlockRepo.getBlocks(from: startOfDay, to: endOfDay)
 
         guard !blocks.isEmpty else {
-            print("⚠️ No time blocks found for \(DailyStats.dateString(from: date))")
             return
         }
 
@@ -239,8 +234,6 @@ class TimeBlockAggregator {
 
             try dailyStatsRepo.save(stats)
         }
-
-        print("📊 Aggregated \(groupedBlocks.count) apps into daily stats for \(dateString)")
     }
 
     /// Calculate number of sessions based on time gaps between blocks

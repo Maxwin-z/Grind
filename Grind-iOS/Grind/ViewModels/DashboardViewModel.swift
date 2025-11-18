@@ -162,9 +162,6 @@ class DashboardViewModel: ObservableObject {
     }
 
     private func processHistoricalData(_ data: HistoricalStatsData, filterNames: Set<String>?) {
-        print("📊 Processing historical data...")
-        print("   - Received \(data.dailyStats.count) daily stats")
-        print("   - Received \(data.topApps.count) top apps")
 
         // Process last 7 days for charts
         let last7Days = getLast7Days()
@@ -203,7 +200,6 @@ class DashboardViewModel: ObservableObject {
         // Fallback to totals if breakdown missing so the charts never go empty
         for dayStats in recentStats {
             let date = dayStats.date
-            print("   - Day \(date): \(dayStats.totalSeconds)s, \(dayStats.totalKeystrokes) keys")
             if filterNames == nil {
                 if perDayActivity[date]?.isEmpty ?? true {
                     perDayActivity[date] = [
@@ -230,9 +226,6 @@ class DashboardViewModel: ObservableObject {
         }
 
         logChartTables()
-        print("✅ Processed \(dailyActivityData.count) days of activity data")
-        print("✅ Activity data has \(dailyActivityData.filter { !$0.appActivities.isEmpty }.count) days with data")
-        print("✅ Keystroke data has \(dailyKeystrokeData.filter { !$0.appKeystrokes.isEmpty }.count) days with data")
     }
 
     private func processRealtimeActivity(_ data: RealtimeActivityData) {
@@ -242,11 +235,9 @@ class DashboardViewModel: ObservableObject {
 
     private func processDailyStatsUpdate(_ update: DailyStatsUpdateData) {
         guard var historical = latestHistoricalData else {
-            print("⚠️ Received daily stats update before initial history; ignoring")
             return
         }
 
-        print("🔄 Applying daily stats update for \(update.dailyStats.date)")
 
         var updatedStats = historical.dailyStats.filter { $0.date != update.dailyStats.date }
         updatedStats.append(update.dailyStats)
@@ -270,11 +261,9 @@ class DashboardViewModel: ObservableObject {
     }
 
     private func processKeystroke(_ data: KeystrokeData) {
-        print("⌨️ DashboardViewModel processKeystroke - key: '\(data.key)', modifiers: \(data.modifiers)")
         currentKey = data.key
         currentModifiers = data.modifiers
         keystrokeSequence &+= 1
-        print("   📤 Published currentKey: '\(currentKey)', currentModifiers: \(currentModifiers)")
 
         // Record keystroke timestamp for KPM calculation
         let now = Date()
@@ -289,8 +278,6 @@ class DashboardViewModel: ObservableObject {
     }
 
     private func processTimeBlocks(_ data: TimeBlocksData) {
-        print("📅 Processing time blocks for \(data.date)...")
-        print("   - Received \(data.blocks.count) time blocks")
 
         // Convert TimeBlockData to TimeBlock for the view
         todayTimeBlocks = data.blocks.map { block in
@@ -304,7 +291,6 @@ class DashboardViewModel: ObservableObject {
         }
 
         let activeBlocks = todayTimeBlocks.filter { $0.hasActivity }.count
-        print("✅ Processed \(todayTimeBlocks.count) time blocks (\(activeBlocks) with activity)")
     }
 
     // MARK: - Helper Functions
@@ -377,39 +363,30 @@ class DashboardViewModel: ObservableObject {
 
     private func logAppMetadata(_ apps: [SelectedAppData]) {
         guard !apps.isEmpty else { return }
-        print("# app metadata")
-        print("app, bundleId, accentColorHex, hasIcon")
         for app in apps.sorted(by: { $0.appName < $1.appName }) {
             let hasIcon = app.iconPNGData == nil ? "no" : "yes"
-            print("\(app.appName), \(app.bundleIdentifier), \(app.accentColorHex), \(hasIcon)")
         }
     }
 
     private func logActivityTable() {
         guard !dailyActivityData.isEmpty else { return }
         let apps = Set(dailyActivityData.flatMap { $0.appActivities.map(\.appName) }).sorted()
-        print("# activity")
-        print(tableHeader(for: apps))
 
         for day in dailyActivityData {
             let values = apps.map { appName in
                 day.appActivities.first { $0.appName == appName }?.duration ?? 0
             }
-            print(tableRow(for: day.date, values: values))
         }
     }
 
     private func logKeystrokeTable() {
         guard !dailyKeystrokeData.isEmpty else { return }
         let apps = Set(dailyKeystrokeData.flatMap { $0.appKeystrokes.map(\.appName) }).sorted()
-        print("# keystrokes")
-        print(tableHeader(for: apps))
 
         for day in dailyKeystrokeData {
             let values = apps.map { appName in
                 day.appKeystrokes.first { $0.appName == appName }?.keystrokes ?? 0
             }
-            print(tableRow(for: day.date, values: values))
         }
     }
 

@@ -8,7 +8,6 @@
 import SwiftUI
 import Combine
 import AppKit
-import os.log
 
 struct ContentView: View {
     @StateObject private var appService = AppService()
@@ -25,7 +24,6 @@ struct ContentView: View {
     private let heartbeatRepo = HeartbeatRepository()
     private let iterm2Service = ITerm2Service.shared
     private let timer = Timer.publish(every: 2.0, on: .main, in: .common).autoconnect()
-    private let logger = Logger(subsystem: "me.maxwin.Grind", category: "ContentView")
 
     var filteredApps: [MacApp] {
         let apps: [MacApp]
@@ -226,10 +224,8 @@ struct ContentView: View {
                 // Update last key pressed immediately for real-time display
                 if let key = notification.userInfo?["key"] as? String,
                    let timestamp = notification.userInfo?["timestamp"] as? Date {
-                    logger.info("📥 Notification received for key: '\(key)'")
                     lastKeyPressed = key
                     lastKeyTimestamp = timestamp
-                    logger.info("🔄 UI updated with new key: '\(key)'")
                 }
             }
         } detail: {
@@ -264,9 +260,6 @@ struct ContentView: View {
 
     private func updateActiveApp() {
         let newApp = appMonitor.getCurrentApp()
-        if let key = newApp?.lastKeyPressed {
-            logger.info("✅ Active app updated with key: '\(key)'")
-        }
 
         // Notify iTerm2 service about app change for automatic monitoring
         if let bundleId = newApp?.bundleId {
@@ -280,7 +273,7 @@ struct ContentView: View {
         do {
             appActivityStats = try heartbeatRepo.getAllAppActivityStats()
         } catch {
-            print("Error fetching activity stats: \(error)")
+            // Silently handle error
         }
     }
 

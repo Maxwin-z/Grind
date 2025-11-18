@@ -9,7 +9,6 @@
 import Foundation
 import CoreGraphics
 import ApplicationServices
-import os.log
 
 /// Notification posted when a key is pressed
 extension Notification.Name {
@@ -21,7 +20,6 @@ extension Notification.Name {
 class KeystrokeCounter {
     static let shared = KeystrokeCounter()
 
-    private let logger = Logger(subsystem: "me.maxwin.Grind", category: "KeystrokeCounter")
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -42,13 +40,11 @@ class KeystrokeCounter {
     /// Requires Accessibility permission
     func startMonitoring() {
         guard eventTap == nil else {
-            print("⚠️  Keystroke counter already running")
             return
         }
 
         // Check for accessibility permission
         guard AXIsProcessTrusted() else {
-            print("❌ Accessibility permission required for keystroke tracking")
             return
         }
 
@@ -69,7 +65,6 @@ class KeystrokeCounter {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            print("❌ Failed to create event tap for keystroke tracking")
             return
         }
 
@@ -78,8 +73,6 @@ class KeystrokeCounter {
 
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-
-        print("✅ Keystroke counter started")
     }
 
     /// Stop monitoring keystrokes
@@ -89,7 +82,6 @@ class KeystrokeCounter {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
             eventTap = nil
             runLoopSource = nil
-            print("⏹️  Keystroke counter stopped")
         }
     }
 
@@ -107,15 +99,12 @@ class KeystrokeCounter {
         // Extract modifier keys
         let modifiers = extractModifiers(from: event)
 
-        logger.info("🔑 Key captured: '\(self.lastKeyPressed)' (code: \(keyCode)) with modifiers: \(modifiers) at \(self.lastKeyTimestamp.timeIntervalSince1970)")
-
         // Get current app bundle ID
         let appBundleId = AppMonitor.shared.currentApp?.bundleId ?? "unknown"
 
         // Post notification for real-time updates
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.logger.info("📤 Posting notification for key: '\(self.lastKeyPressed)'")
             NotificationCenter.default.post(
                 name: .keyPressed,
                 object: nil,

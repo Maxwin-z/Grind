@@ -47,10 +47,8 @@ class DatabaseManager {
 
             // Run migrations
             try runMigrations()
-
-            print("✅ Database initialized at: \(databaseURL.path)")
         } catch {
-            print("❌ Database setup failed: \(error)")
+            // Silently handle error
         }
     }
 
@@ -84,7 +82,6 @@ class DatabaseManager {
                 t.add(column: "mouseMovementCount", .integer).notNull().defaults(to: 0)
                 t.add(column: "mouseClickCount", .integer).notNull().defaults(to: 0)
             }
-            print("✅ Added mouse tracking columns to heartbeats table")
         }
 
         // Migration v4: Add mouse tracking to daily_stats
@@ -93,7 +90,6 @@ class DatabaseManager {
                 t.add(column: "mouseMovementCount", .integer).notNull().defaults(to: 0)
                 t.add(column: "mouseClickCount", .integer).notNull().defaults(to: 0)
             }
-            print("✅ Added mouse tracking columns to daily_stats table")
         }
 
         // Migration v5: Add mouse tracking to blocks_5min
@@ -102,7 +98,6 @@ class DatabaseManager {
                 t.add(column: "mouseMovementCount", .integer).notNull().defaults(to: 0)
                 t.add(column: "mouseClickCount", .integer).notNull().defaults(to: 0)
             }
-            print("✅ Added mouse tracking columns to blocks_5min table")
         }
 
         // Migration v6: Add color column to app_categories
@@ -113,7 +108,6 @@ class DatabaseManager {
             }
             // Update existing rows with deterministic colors based on bundle ID
             try self.updateExistingAppColors(db)
-            print("✅ Added color column to app_categories table")
         }
 
         // Run migrations
@@ -137,7 +131,6 @@ class DatabaseManager {
             t.column("idleSeconds", .double).notNull()
             t.column("keystrokeCount", .integer).notNull().defaults(to: 0)
         }
-        print("✅ Created table: heartbeats")
     }
 
     private func createTimeBlocksTable(_ db: Database) throws {
@@ -153,7 +146,6 @@ class DatabaseManager {
             // Composite primary key
             t.primaryKey(["blockStart", "appName"])
         }
-        print("✅ Created table: blocks_5min")
     }
 
     private func createDailyStatsTable(_ db: Database) throws {
@@ -171,7 +163,6 @@ class DatabaseManager {
             // Composite primary key
             t.primaryKey(["date", "appName"])
         }
-        print("✅ Created table: daily_stats")
     }
 
     private func createAppCategoriesTable(_ db: Database) throws {
@@ -186,8 +177,6 @@ class DatabaseManager {
 
         // Seed with default categories
         try seedDefaultCategories(db)
-
-        print("✅ Created table: app_categories")
     }
 
     /// Seed database with default app categories
@@ -203,7 +192,6 @@ class DatabaseManager {
             )
             try category.insert(db)
         }
-        print("✅ Seeded \(AppCategory.defaultMappings.count) default app categories")
     }
 
     // MARK: - Indexes
@@ -222,8 +210,6 @@ class DatabaseManager {
         // Daily stats indexes
         try db.create(index: "idx_daily_date", on: "daily_stats", columns: ["date"])
         try db.create(index: "idx_daily_category", on: "daily_stats", columns: ["category"])
-
-        print("✅ Created database indexes")
     }
 
     // MARK: - Cleanup

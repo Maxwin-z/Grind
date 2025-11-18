@@ -96,7 +96,6 @@ class HeartbeatService {
             try saveHeartbeat(heartbeat)
             return heartbeat
         } catch {
-            print("❌ Error saving heartbeat: \(error)")
             return nil
         }
     }
@@ -117,7 +116,6 @@ class HeartbeatService {
     /// Close current session (on idle or app quit)
     func closeSession() {
         lastHeartbeatTime = nil
-        print("Session closed")
     }
 
     /// Get time since last heartbeat
@@ -135,7 +133,6 @@ class HeartbeatService {
         do {
             return try heartbeatRepo.getTodayActiveTime()
         } catch {
-            print("❌ Error getting today's active time: \(error)")
             return 0
         }
     }
@@ -145,7 +142,6 @@ class HeartbeatService {
         do {
             return try heartbeatRepo.getTodayKeystrokeCount()
         } catch {
-            print("❌ Error getting today's keystroke count: \(error)")
             return 0
         }
     }

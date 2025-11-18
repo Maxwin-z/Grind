@@ -33,13 +33,11 @@ class MouseMovementCounter {
     /// Requires Accessibility permission
     func startMonitoring() {
         guard eventTap == nil else {
-            print("⚠️  Mouse counter already running")
             return
         }
 
         // Check for accessibility permission
         guard AXIsProcessTrusted() else {
-            print("❌ Accessibility permission required for mouse tracking")
             return
         }
 
@@ -78,7 +76,6 @@ class MouseMovementCounter {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            print("❌ Failed to create event tap for mouse tracking")
             return
         }
 
@@ -87,8 +84,6 @@ class MouseMovementCounter {
 
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-
-        print("✅ Mouse movement counter started")
     }
 
     /// Stop monitoring mouse activity
@@ -98,7 +93,6 @@ class MouseMovementCounter {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
             eventTap = nil
             runLoopSource = nil
-            print("⏹️  Mouse movement counter stopped")
         }
     }
 
