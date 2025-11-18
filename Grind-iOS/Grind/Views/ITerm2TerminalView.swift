@@ -72,9 +72,19 @@ struct ITerm2TerminalView: View {
             return styled
         }
         if let screenLines = session.screenLines, !screenLines.isEmpty {
-            return ANSIColorParser.styledLines(from: screenLines)
+            let trimmedLines = removeTrailingBlankLines(screenLines)
+            return ANSIColorParser.styledLines(from: trimmedLines)
         }
         return nil
+    }
+
+    /// Remove trailing blank lines from the array
+    private func removeTrailingBlankLines(_ lines: [String]) -> [String] {
+        var result = lines
+        while let last = result.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
+            result.removeLast()
+        }
+        return result
     }
 
     var body: some View {
