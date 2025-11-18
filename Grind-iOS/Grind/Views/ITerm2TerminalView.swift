@@ -7,6 +7,9 @@
 
 import SwiftUI
 
+// Shared terminal font so size can be tuned centrally
+private let terminalFont: Font = .system(size: 24, design: .monospaced)
+
 // MARK: - RGBColor Extension
 
 extension RGBColor {
@@ -43,7 +46,7 @@ struct TerminalCharacterView: View {
 
     var body: some View {
         Text(character.char.isEmpty ? " " : character.char)
-            .font(.system(size: 12, design: .monospaced))
+            .font(terminalFont)
             .fontWeight(character.bold ? .bold : .regular)
             .italic(character.italic)
             .underline(character.underline)
@@ -75,7 +78,7 @@ struct ITerm2TerminalView: View {
                     // Fallback to plain text if no styled lines available
                     ForEach(Array(screenLines.enumerated()), id: \.offset) { index, line in
                         Text(line.isEmpty ? " " : line)
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(terminalFont)
                             .foregroundColor(defaultForeground)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .frame(height: 16)
