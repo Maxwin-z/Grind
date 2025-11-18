@@ -32,6 +32,10 @@ class NetworkClient: NSObject, ObservableObject {
     private var serviceBrowser: NWBrowser?
     private let queue = DispatchQueue(label: "com.grind.networkclient", qos: .userInitiated)
     private var messageSubject = PassthroughSubject<NetworkMessage, Never>()
+    private var lastEndpoint: NWEndpoint?
+    private var retryWorkItem: DispatchWorkItem?
+    private var shouldAutoRetry = true
+    private let retryInterval: TimeInterval = 5.0
 
     // Network configuration
     private let serverPort: UInt16 = 9527
@@ -45,7 +49,11 @@ class NetworkClient: NSObject, ObservableObject {
 
     /// Start discovering Grind servers on local network using Bonjour
     func startServiceDiscovery() {
+        shouldAutoRetry = true
+        cancelRetryWorkItem()
         connectionStatus = "Discovering servers..."
+        serviceBrowser?.cancel()
+        serviceBrowser = nil
 
         let parameters = NWParameters.tcp
         parameters.includePeerToPeer = true
@@ -87,26 +95,28 @@ class NetworkClient: NSObject, ObservableObject {
 
     /// Connect to discovered service endpoint
     private func connectToService(_ endpoint: NWEndpoint) {
-        let connection = NWConnection(to: endpoint, using: .tcp)
-        startConnection(connection)
+        startConnection(to: endpoint)
     }
 
     /// Manually connect to server by IP address
     func connectToServer(host: String, port: UInt16 = 9527) {
+        shouldAutoRetry = true
+        cancelRetryWorkItem()
         let host = NWEndpoint.Host(host)
         let port = NWEndpoint.Port(rawValue: port)!
         let endpoint = NWEndpoint.hostPort(host: host, port: port)
 
-        let connection = NWConnection(to: endpoint, using: .tcp)
-        startConnection(connection)
+        startConnection(to: endpoint)
     }
 
     // MARK: - Connection Management
 
-    private func startConnection(_ newConnection: NWConnection) {
+    private func startConnection(to endpoint: NWEndpoint) {
         // Cancel existing connection
         connection?.cancel()
 
+        lastEndpoint = endpoint
+        let newConnection = NWConnection(to: endpoint, using: .tcp)
         connection = newConnection
 
         connection?.stateUpdateHandler = { [weak self] newState in
@@ -115,6 +125,7 @@ class NetworkClient: NSObject, ObservableObject {
                 case .ready:
                     self?.isConnected = true
                     self?.connectionStatus = "Connected"
+                    self?.cancelRetryWorkItem()
                     self?.receiveMessages()
                 case .preparing:
                     self?.connectionStatus = "Connecting..."
@@ -123,9 +134,11 @@ class NetworkClient: NSObject, ObservableObject {
                 case .failed(let error):
                     self?.isConnected = false
                     self?.connectionStatus = "Failed: \(error.localizedDescription)"
+                    self?.scheduleRetry()
                 case .cancelled:
                     self?.isConnected = false
                     self?.connectionStatus = "Disconnected"
+                    self?.scheduleRetry()
                 default:
                     break
                 }
@@ -136,10 +149,51 @@ class NetworkClient: NSObject, ObservableObject {
     }
 
     func disconnect() {
+        shouldAutoRetry = false
+        cancelRetryWorkItem()
+        lastEndpoint = nil
         connection?.cancel()
         connection = nil
         serviceBrowser?.cancel()
         serviceBrowser = nil
+    }
+
+    private func scheduleRetry() {
+        guard shouldAutoRetry else { return }
+        guard retryWorkItem == nil else { return }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.retryWorkItem = nil
+            self?.retryConnection()
+        }
+        retryWorkItem = workItem
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.connectionStatus = "Reconnecting in \(Int(self.retryInterval))s..."
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + retryInterval, execute: workItem)
+    }
+
+    private func retryConnection() {
+        guard shouldAutoRetry else { return }
+
+        if let endpoint = lastEndpoint {
+            DispatchQueue.main.async { [weak self] in
+                self?.connectionStatus = "Reconnecting..."
+            }
+            startConnection(to: endpoint)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.connectionStatus = "Retrying discovery..."
+            }
+            startServiceDiscovery()
+        }
+    }
+
+    private func cancelRetryWorkItem() {
+        retryWorkItem?.cancel()
+        retryWorkItem = nil
     }
 
     // MARK: - Message Receiving

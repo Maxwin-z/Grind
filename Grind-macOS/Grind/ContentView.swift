@@ -24,7 +24,7 @@ final class StatusBarMenuController: NSObject, ObservableObject {
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "rectangle.stack.fill.badge.person.crop", accessibilityDescription: "Grind")
+            button.image = NSImage(systemSymbolName: "cup.and.heat.waves.fill", accessibilityDescription: "Grind")
             button.image?.isTemplate = true
         }
 
