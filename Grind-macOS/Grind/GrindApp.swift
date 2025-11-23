@@ -5,30 +5,35 @@
 //  Created by Maxwin on 2025/11/16.
 //
 
-import SwiftUI
 import AppKit
+import SwiftUI
 
 @main
 struct GrindApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    var body: some Scene {
-        Settings {
-            EmptyView()
-        }
+  var body: some Scene {
+    Settings {
+      EmptyView()
     }
+  }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let statusBarController = StatusBarMenuController()
+  private let statusBarController = StatusBarMenuController()
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        ActivityMonitor.shared.startMonitoring()
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    ActivityMonitor.shared.startMonitoring()
 
-        Task { @MainActor in
-            NetworkService.shared.startServer()
-        }
+    Task { @MainActor in
+      // Initialize AppService and fetch applications to populate known apps
+      let appService = AppService()
+      await appService.fetchApplications()
+      AppDataSharingPreferences.shared.updateKnownApps(appService.applications)
 
-        statusBarController.activate()
+      NetworkService.shared.startServer()
     }
+
+    statusBarController.activate()
+  }
 }
